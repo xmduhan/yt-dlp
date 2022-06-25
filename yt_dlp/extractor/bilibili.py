@@ -168,11 +168,11 @@ class BiliBiliIE(InfoExtractor):
 
         # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
         # If the video has no page argument, check to see if it's an anthology
-        if page_id is None and bv_id is not None:
+        if page_id is None and not smuggled_data.get('from_playlist', False):
             if not self.get_param('noplaylist'):
-                r = self._extract_anthology_entries(bv_id, video_id, webpage)
+                r = self._extract_anthology_entries(video_id, webpage)
                 if r is not None:
-                    self.to_screen('Downloading anthology %s - add --no-playlist to just download video' % video_id)
+                    self.to_screen('Downloading anthology/playlist %s - add --no-playlist to just download video' % video_id)
                     return r
             else:
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
@@ -308,7 +308,7 @@ class BiliBiliIE(InfoExtractor):
 
         # TODO 'view_count' requires deobfuscating Javascript
         info.update({
-            'id': f'{video_id}_part{page_id or 1}',
+            'id': f'{video_id}_part{page_id}' if page_id is not None else video_id,
             'cid': cid,
             'title': title,
             'description': description,
@@ -368,7 +368,10 @@ class BiliBiliIE(InfoExtractor):
             return entries[0]
 
         for idx, entry in enumerate(entries):
-            entry['id'] = '%s_part%d' % (video_id, (idx + 1))
+            if len(entries) > 1:
+                entry['id'] = '%s_part%d' % (video_id, (idx + 1))
+            else:
+                entry['id'] = str(video_id)
 
         return {
             'id': str(video_id),
@@ -378,20 +381,43 @@ class BiliBiliIE(InfoExtractor):
             **info, **top_level_info
         }
 
-    def _extract_anthology_entries(self, bv_id, video_id, webpage):
-        title = self._html_search_regex(
-            (r'<h1[^>]+\btitle=(["\'])(?P<title>(?:(?!\1).)+)\1',
-             r'(?s)<h1[^>]*>(?P<title>.+?)</h1>',
-             r'<title>(?P<title>.+?)</title>'), webpage, 'title',
-            group='title')
-        json_data = self._download_json(
-            f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
-            video_id, note='Extracting videos in anthology')
+    def _extract_anthology_entries(self, video_id, webpage):
+        json__INITIAL_STATE__ = self._parse_json(
+            self._search_regex(r'window.__INITIAL_STATE__\s*=\s*({.+?});\(function\(\)', webpage, '__INITIAL_STATE__',
+                               default=None) or '{}',
+            video_id, fatal=False)
 
-        if json_data['data']:
-            return self.playlist_from_matches(
-                json_data['data'], bv_id, title, ie=BiliBiliIE.ie_key(),
-                getter=lambda entry: 'https://www.bilibili.com/video/%s?p=%d' % (bv_id, entry['page']))
+        url_smuggled_data = '#__youtubedl_smuggle={"from_playlist":true}'
+
+        if 'sectionsInfo' in json__INITIAL_STATE__:
+            season_info = json__INITIAL_STATE__['sectionsInfo']
+
+            entries = [{
+                '_type': 'url_transparent',
+                'url': "https://www.bilibili.com/video/" + episode['bvid'] + url_smuggled_data,
+                'ie_key': BiliBiliIE.ie_key(),
+                'timestamp': None,
+                'episode': episode['title']
+            } for episode in season_info['sections'][0]['episodes']]
+
+            return self.playlist_result(entries, season_info['id'], season_info['title'])
+
+        elif 'epInfo' in json__INITIAL_STATE__:
+            bangumi_id = json__INITIAL_STATE__['epInfo']['aid']
+            season_info = json__INITIAL_STATE__['mediaInfo']
+
+            entries = [{
+                '_type': 'url_transparent',
+                'url': episode['link'] + url_smuggled_data,
+                'ie_key': BiliBiliIE.ie_key(),
+                'timestamp': None,
+                'episode': episode['long_title']
+            } for episode in season_info['episodes']]
+
+            return self.playlist_result(entries, bangumi_id, season_info['season_title'])
+        else:
+            raise ExtractorError('Unknown __INITIAL_STATE__', expected=True, video_id=id)
+
 
     def _get_video_id_set(self, id, is_bv):
         query = {'bvid': id} if is_bv else {'aid': id}
