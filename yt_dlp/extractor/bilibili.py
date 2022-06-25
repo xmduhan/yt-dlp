@@ -247,11 +247,7 @@ class BiliBiliIE(InfoExtractor):
                     'tbr': float_or_none(durl.get('bandwidth'), scale=1000),
                     'filesize': int_or_none(durl.get('size')),
                 })
-                for backup_url in traverse_obj(durl, 'backup_url', expected_type=list) or []:
-                    formats.append({
-                        'url': backup_url,
-                        'quality': -2 if 'hd.mp4' in backup_url else -3,
-                    })
+                # backup_url is all audio
 
             for audio in audios:
                 formats.append({
@@ -270,6 +266,7 @@ class BiliBiliIE(InfoExtractor):
                         'url': backup_url,
                         # backup URLs have lower priorities
                         'quality': -3,
+                        'vcodec': 'none',
                     })
 
             info.update({
