@@ -36,13 +36,13 @@ from ..utils import (
 class BiliBiliIE(InfoExtractor):
     _VALID_URL = r'''(?x)
                     https?://
-                        (?:(?:www|bangumi)\.)?
+                        www\.
                         bilibili\.(?:tv|com)/
                         (?:
                             (?:
                                 video/[aA][vV]|
-                                anime/(?P<anime_id>\d+)/play\#
-                            )(?P<id>\d+)|
+                                bangumi/play/
+                            )(?P<id>(?:ss|ep)?\d+)|
                             (s/)?video/[bB][vV](?P<id_bv>[^/?#&]+)
                         )
                         (?:/?\?p=(?P<page>\d+))?
@@ -68,14 +68,14 @@ class BiliBiliIE(InfoExtractor):
         },
     }, {
         # Tested in BiliBiliBangumiIE
-        'url': 'http://bangumi.bilibili.com/anime/1869/play#40062',
+        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
         'only_matching': True,
     }, {
         # bilibili.tv
         'url': 'http://www.bilibili.tv/video/av1074402/',
         'only_matching': True,
     }, {
-        'url': 'http://bangumi.bilibili.com/anime/5802/play#100643',
+        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
         'md5': '3f721ad1e75030cc06faf73587cfec57',
         'info_dict': {
             'id': '100643_part1',
@@ -156,17 +156,19 @@ class BiliBiliIE(InfoExtractor):
         mobj = self._match_valid_url(url)
         video_id = mobj.group('id_bv') or mobj.group('id')
 
-        av_id, bv_id = self._get_video_id_set(video_id, mobj.group('id_bv') is not None)
-        video_id = av_id
+        if 'bangumi/play' in url:
+            bv_id = None
+        else:
+            av_id, bv_id = self._get_video_id_set(video_id, mobj.group('id_bv') is not None)
+            video_id = av_id
 
         info = {}
-        anime_id = mobj.group('anime_id')
         page_id = mobj.group('page')
         webpage = self._download_webpage(url, video_id)
 
         # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
         # If the video has no page argument, check to see if it's an anthology
-        if page_id is None:
+        if page_id is None and bv_id is not None:
             if not self.get_param('noplaylist'):
                 r = self._extract_anthology_entries(bv_id, video_id, webpage)
                 if r is not None:
@@ -175,7 +177,7 @@ class BiliBiliIE(InfoExtractor):
             else:
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
 
-        if 'anime/' not in url:
+        if 'bangumi/play' not in url:
             cid = self._search_regex(
                 r'\bcid(?:["\']:|=)(\d+),["\']page(?:["\']:|=)' + str(page_id), webpage, 'cid',
                 default=None
@@ -188,22 +190,17 @@ class BiliBiliIE(InfoExtractor):
                  r'<iframe[^>]+src="https://secure\.bilibili\.com/secure,([^"]+)"'],
                 webpage, 'player parameters'))['cid'][0]
         else:
-            if 'no_bangumi_tip' not in smuggled_data:
-                self.to_screen('Downloading episode %s. To download all videos in anime %s, re-run yt-dlp with %s' % (
-                    video_id, anime_id, compat_urlparse.urljoin(url, '//bangumi.bilibili.com/anime/%s' % anime_id)))
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'Referer': url
             }
             headers.update(self.geo_verification_headers())
 
-            js = self._download_json(
-                'http://bangumi.bilibili.com/web_api/get_source', video_id,
-                data=urlencode_postdata({'episode_id': video_id}),
-                headers=headers)
-            if 'result' not in js:
-                self._report_error(js)
-            cid = js['result']['cid']
+            json__INITIAL_STATE__ = self._parse_json(
+                self._search_regex(r'window.__INITIAL_STATE__\s*=\s*({.+?});\(function\(\)', webpage, '__INITIAL_STATE__', default=None) or '{}',
+                video_id, fatal=False)
+
+            cid = json__INITIAL_STATE__['epInfo']['cid']
 
         headers = {
             'Accept': 'application/json',
@@ -482,24 +479,25 @@ class BiliBiliBangumiIE(InfoExtractor):
         bangumi_id = self._match_id(url)
 
         # Sometimes this API returns a JSONP response
-        season_info = self._download_json(
-            'http://bangumi.bilibili.com/jsonp/seasoninfo/%s.ver' % bangumi_id,
-            bangumi_id, transform_source=strip_jsonp)['result']
+        webpage = self._download_webpage(url, bangumi_id)
+
+        json__INITIAL_STATE__ = self._parse_json(
+            self._search_regex(r'window.__INITIAL_STATE__\s*=\s*({.+?});\(function\(\)', webpage, '__INITIAL_STATE__',
+                               default=None) or '{}',
+            bangumi_id, fatal=False)
+
+        bangumi_id = json__INITIAL_STATE__['epInfo']['aid']
+        season_info = json__INITIAL_STATE__['mediaInfo']
 
         entries = [{
             '_type': 'url_transparent',
-            'url': smuggle_url(episode['webplay_url'], {'no_bangumi_tip': 1}),
+            'url': episode['link'],
             'ie_key': BiliBiliIE.ie_key(),
-            'timestamp': parse_iso8601(episode.get('update_time'), delimiter=' '),
-            'episode': episode.get('index_title'),
-            'episode_number': int_or_none(episode.get('index')),
+            'timestamp': None,
+            'episode': episode['long_title']
         } for episode in season_info['episodes']]
 
-        entries = sorted(entries, key=lambda entry: entry.get('episode_number'))
-
-        return self.playlist_result(
-            entries, bangumi_id,
-            season_info.get('bangumi_title'), season_info.get('evaluate'))
+        return self.playlist_result(entries, bangumi_id, season_info['season_title'])
 
 
 class BilibiliChannelIE(InfoExtractor):
