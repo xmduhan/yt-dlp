@@ -215,7 +215,6 @@ class BiliBiliIE(InfoExtractor):
 
         durl = traverse_obj(video_info, ('dash', 'video'))
         audios = traverse_obj(video_info, ('dash', 'audio')) or []
-        entries = []
 
         RENDITIONS = ('qn=80&quality=80&type=', 'quality=2&type=mp4')
         for num, rendition in enumerate(RENDITIONS, start=1):
@@ -340,35 +339,7 @@ class BiliBiliIE(InfoExtractor):
             }]
         }
 
-        r'''
-        # Requires https://github.com/m13253/danmaku2ass which is licenced under GPL3
-        # See https://github.com/animelover1984/youtube-dl
-
-        raw_danmaku = self._download_webpage(
-            f'https://comment.bilibili.com/{cid}.xml', video_id, fatal=False, note='Downloading danmaku comments')
-        danmaku = NiconicoIE.CreateDanmaku(raw_danmaku, commentType='Bilibili', x=1024, y=576)
-        entries[0]['subtitles'] = {
-            'danmaku': [{
-                'ext': 'ass',
-                'data': danmaku
-            }]
-        }
-        '''
-
         top_level_info['__post_extractor'] = self.extract_comments(video_id)
-
-        for entry in entries:
-            entry.update(info)
-
-        if len(entries) == 1:
-            entries[0].update(top_level_info)
-            return entries[0]
-
-        for idx, entry in enumerate(entries):
-            if len(entries) > 1:
-                entry['id'] = '%s_part%d' % (video_id, (idx + 1))
-            else:
-                entry['id'] = str(video_id)
 
         return {
             'id': str(video_id),
