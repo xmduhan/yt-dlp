@@ -230,7 +230,6 @@ class BiliBiliIE(InfoExtractor):
                     'tbr': float_or_none(videos.get('bandwidth'), scale=1000),
                     'filesize': int_or_none(videos.get('size')),
                 })
-                # backup_url is all audio
 
             for audio in audios:
                 formats.append({
@@ -244,13 +243,6 @@ class BiliBiliIE(InfoExtractor):
                     'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
                     'filesize': int_or_none(audio.get('size'))
                 })
-                for backup_url in traverse_obj(audio, 'backup_url', expected_type=list) or []:
-                    formats.append({
-                        'url': backup_url,
-                        # backup URLs have lower priorities
-                        'quality': -3,
-                        'vcodec': 'none',
-                    })
 
             info.update({
                 'id': video_id,
@@ -293,7 +285,6 @@ class BiliBiliIE(InfoExtractor):
                         'tbr': float_or_none(videos.get('bandwidth'), scale=1000),
                         'filesize': int_or_none(videos.get('size')),
                     })
-                    # backup_url is all audio
 
                 for audio in audios:
                     formats.append({
@@ -307,13 +298,6 @@ class BiliBiliIE(InfoExtractor):
                         'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
                         'filesize': int_or_none(audio.get('size'))
                     })
-                    for backup_url in traverse_obj(audio, 'backup_url', expected_type=list) or []:
-                        formats.append({
-                            'url': backup_url,
-                            # backup URLs have lower priorities
-                            'quality': -3,
-                            'vcodec': 'none',
-                        })
 
                 info.update({
                     'id': video_id,
