@@ -213,38 +213,22 @@ class BiliBiliIE(InfoExtractor):
             video_id, fatal=False)
         video_info = video_info.get('data') or {}
 
-        durl = traverse_obj(video_info, ('dash', 'video'))
+        videos = traverse_obj(video_info, ('dash', 'video'))
         audios = traverse_obj(video_info, ('dash', 'audio')) or []
 
-        RENDITIONS = ('qn=80&quality=80&type=', 'quality=2&type=mp4')
-        for num, rendition in enumerate(RENDITIONS, start=1):
-            payload = 'appkey=%s&cid=%s&otype=json&%s' % (self._APP_KEY, cid, rendition)
-            sign = hashlib.md5((payload + self._BILIBILI_KEY).encode('utf-8')).hexdigest()
-            if not video_info:
-                video_info = self._download_json(
-                    'http://interface.bilibili.com/v2/playurl?%s&sign=%s' % (payload, sign),
-                    video_id, note='Downloading video info page',
-                    headers=headers, fatal=num == len(RENDITIONS))
-                if not video_info:
-                    continue
-
-            if not durl and 'durl' not in video_info:
-                if num < len(RENDITIONS):
-                    continue
-                self._report_error(video_info)
-
-            formats = []
-            for idx, durl in enumerate(durl or video_info['durl']):
+        formats = []
+        if videos is not None:
+            for idx, videos in enumerate(videos):
                 formats.append({
-                    'url': durl.get('baseUrl') or durl.get('base_url') or durl.get('url'),
-                    'ext': mimetype2ext(durl.get('mimeType') or durl.get('mime_type')),
-                    'fps': int_or_none(durl.get('frameRate') or durl.get('frame_rate')),
-                    'width': int_or_none(durl.get('width')),
-                    'height': int_or_none(durl.get('height')),
-                    'vcodec': durl.get('codecs'),
+                    'url': videos.get('baseUrl') or videos.get('base_url') or videos.get('url'),
+                    'ext': mimetype2ext(videos.get('mimeType') or videos.get('mime_type')),
+                    'fps': int_or_none(videos.get('frameRate') or videos.get('frame_rate')),
+                    'width': int_or_none(videos.get('width')),
+                    'height': int_or_none(videos.get('height')),
+                    'vcodec': videos.get('codecs'),
                     'acodec': 'none' if audios else None,
-                    'tbr': float_or_none(durl.get('bandwidth'), scale=1000),
-                    'filesize': int_or_none(durl.get('size')),
+                    'tbr': float_or_none(videos.get('bandwidth'), scale=1000),
+                    'filesize': int_or_none(videos.get('size')),
                 })
                 # backup_url is all audio
 
@@ -270,13 +254,76 @@ class BiliBiliIE(InfoExtractor):
 
             info.update({
                 'id': video_id,
-                'duration': float_or_none(durl.get('length'), 1000),
+                'duration': float_or_none(videos.get('length'), 1000),
                 'formats': formats,
                 'http_headers': {
                     'Referer': url,
                 },
             })
-            break
+
+        else:
+            # old video dont have dash in video_info
+            # these videos maybe flv fragments, the code below dont work properly
+            RENDITIONS = ('qn=80&quality=80&type=', 'quality=2&type=mp4')
+            for num, rendition in enumerate(RENDITIONS, start=1):
+                payload = 'appkey=%s&cid=%s&otype=json&%s' % (self._APP_KEY, cid, rendition)
+                sign = hashlib.md5((payload + self._BILIBILI_KEY).encode('utf-8')).hexdigest()
+                if not video_info:
+                    video_info = self._download_json(
+                        'http://interface.bilibili.com/v2/playurl?%s&sign=%s' % (payload, sign),
+                        video_id, note='Downloading video info page',
+                        headers=headers, fatal=num == len(RENDITIONS))
+                    if not video_info:
+                        continue
+
+                if not videos and 'durl' not in video_info:
+                    if num < len(RENDITIONS):
+                        continue
+                    self._report_error(video_info)
+
+                for idx, videos in enumerate(video_info['durl']):
+                    formats.append({
+                        'url': videos.get('baseUrl') or videos.get('base_url') or videos.get('url'),
+                        'ext': mimetype2ext(videos.get('mimeType') or videos.get('mime_type')),
+                        'fps': int_or_none(videos.get('frameRate') or videos.get('frame_rate')),
+                        'width': int_or_none(videos.get('width')),
+                        'height': int_or_none(videos.get('height')),
+                        'vcodec': videos.get('codecs'),
+                        'acodec': 'none' if audios else None,
+                        'tbr': float_or_none(videos.get('bandwidth'), scale=1000),
+                        'filesize': int_or_none(videos.get('size')),
+                    })
+                    # backup_url is all audio
+
+                for audio in audios:
+                    formats.append({
+                        'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
+                        'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
+                        'fps': int_or_none(audio.get('frameRate') or audio.get('frame_rate')),
+                        'width': int_or_none(audio.get('width')),
+                        'height': int_or_none(audio.get('height')),
+                        'acodec': audio.get('codecs'),
+                        'vcodec': 'none',
+                        'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
+                        'filesize': int_or_none(audio.get('size'))
+                    })
+                    for backup_url in traverse_obj(audio, 'backup_url', expected_type=list) or []:
+                        formats.append({
+                            'url': backup_url,
+                            # backup URLs have lower priorities
+                            'quality': -3,
+                            'vcodec': 'none',
+                        })
+
+                info.update({
+                    'id': video_id,
+                    'duration': float_or_none(video_info.get('timelength'), 1000),
+                    'formats': formats,
+                    'http_headers': {
+                        'Referer': url,
+                    },
+                })
+                break
 
         self._sort_formats(formats)
 
