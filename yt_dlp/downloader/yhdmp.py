@@ -18,12 +18,15 @@ class YhdmpFD(FragmentFD):
     def __init__(self, ydl, params):
         FragmentFD.__init__(self, ydl, params)
 
+        self.verbose = params.get('verbose', False)
         self.chrome_wait_timeout = params.get('selenium_browner_timeout', 10)
         self.headless = params.get('selenium_browner_headless', True)
-        self.verbose = params.get('verbose', False)
 
         from selenium.webdriver.remote.remote_connection import LOGGER
-        LOGGER.setLevel(logging.INFO)
+        LOGGER.setLevel(logging.WARNING)
+
+        if self.verbose:
+            self.to_screen(f'params: {params}')
 
     def type1_download_frags(self, url, temp_output_fn_prefix):
         from selenium import webdriver
