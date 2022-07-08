@@ -863,6 +863,10 @@ def parse_options(argv=None):
         '_warnings': warnings,
         '_deprecation_warnings': deprecation_warnings,
         'compat_opts': opts.compat_opts,
+
+        'selenium_browner_headless': opts.selenium_browner_headless,
+        'selenium_browner_timeout': opts.selenium_browner_timeout,
+        'yhdmp_webpage_retry_num': opts.yhdmp_webpage_retry_num,
     }
 
 
