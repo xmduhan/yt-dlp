@@ -991,6 +991,14 @@ def create_parser():
             'For ffmpeg, arguments can be passed to different positions using the same syntax as --postprocessor-args. '
             'You can use this option multiple times to give different arguments to different downloaders '
             '(Alias: --external-downloader-args)'))
+    downloader.add_option(
+        '--selenium-browner-timeout', dest='selenium_browner_timeout', metavar='NUMBER', default=10, type='float')
+    downloader.add_option(
+        '--selenium-browner-no-headless', dest='selenium_browner_headless', action='store_false')
+    downloader.add_option(
+        '--selenium-browner-headless', dest='selenium_browner_headless', action='store_true')
+    downloader.add_option(
+        '--yhdmp-webpage-retry-num', dest='yhdmp_webpage_retry_num', metavar='NUMBER', default=1, type='int')
 
     workarounds = optparse.OptionGroup(parser, 'Workarounds')
     workarounds.add_option(
