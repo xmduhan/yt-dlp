@@ -381,6 +381,10 @@ class BiliBiliIE(InfoExtractor):
         timestamp = traverse_obj(initial_state, ('videoData', 'pubdate'))
         tags = [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t]
 
+        view_count = traverse_obj(initial_state, ('videoData', 'stat', 'view'))
+        like_count = traverse_obj(initial_state, ('videoData', 'stat', 'like'))
+        comment_count = traverse_obj(initial_state, ('videoData', 'stat', 'reply'))
+
         return {
             **info_fmt,
             'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
@@ -395,6 +399,9 @@ class BiliBiliIE(InfoExtractor):
             'uploader': uploader,
             'uploader_id': uploader_id,
             'tags': tags,
+            'view_count': view_count,
+            'like_count': like_count,
+            'comment_count': comment_count,
             'http_headers': {
                 'Referer': url,
             },
