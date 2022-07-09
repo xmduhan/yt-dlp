@@ -156,7 +156,8 @@ class BiliBiliIE(InfoExtractor):
         webpage = self._download_webpage(url, video_id)
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
 
-        if mobj.group('bangumi'):
+        is_bangumi = mobj.group('bangumi') is not None
+        if is_bangumi:
             aid = traverse_obj(initial_state, ('epInfo', 'aid'))
             bv_id = traverse_obj(initial_state, ('epInfo', 'bvid'))
             cid = traverse_obj(initial_state, ('epInfo', 'cid'))
@@ -165,9 +166,7 @@ class BiliBiliIE(InfoExtractor):
             bv_id = traverse_obj(initial_state, ('videoData', 'bvid'))
             cid = traverse_obj(initial_state, ('videoData', 'cid'))
 
-        page_id = mobj.group('page')
-        if page_id is not None:
-            page_id = int(page_id)
+        page_id = int_or_none(mobj.group('page'))
 
         # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
         # If the video has no page argument, check to see if it's an anthology
@@ -180,11 +179,11 @@ class BiliBiliIE(InfoExtractor):
             else:
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
 
-        headers = {
+        json_headers = {
             'Accept': 'application/json',
             'Referer': url
         }
-        headers.update(self.geo_verification_headers())
+        json_headers.update(self.geo_verification_headers())
 
         title = self._html_search_regex((
             r'<h1[^>]+title=(["])(?P<content>[^"]+)',
@@ -198,10 +197,10 @@ class BiliBiliIE(InfoExtractor):
         if page_id is not None:
             page_str = 'p%02d' % page_id
 
-            # TODO: The json is already downloaded by _extract_anthology_entries. Don't redownload for each video.
-            part_info = traverse_obj(self._download_json(
-                f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
-                video_id, note='Extracting videos in anthology'), 'data', expected_type=list)
+            page_list_json = self._download_json(f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
+                                                 video_id, note='Extracting videos in anthology',
+                                                 headers=json_headers)
+            part_info = traverse_obj(page_list_json, 'data', expected_type=list)
             if len(part_info) > 1:
                 title = f'{title} {page_str} {traverse_obj(part_info, (page_id - 1, "part")) or ""}'
 
@@ -251,11 +250,8 @@ class BiliBiliIE(InfoExtractor):
 
             support_formats = play_info['support_formats'] or []
             for f in support_formats:
-                playurl = 'https://api.bilibili.com/x/player/playurl?bvid=%s&cid=%s&qn=%s' % (
-                    bv_id, cid, f['quality'])
-                video_info_ext = self._download_json(playurl, video_id,
-                                                     note='Downloading video info page',
-                                                     headers=headers)
+                playurl = f'https://api.bilibili.com/x/player/playurl?bvid={bv_id}&cid={cid}&qn={f["quality"]}'
+                video_info_ext = self._download_json(playurl, video_id, headers=json_headers)
                 if not video_info_ext:
                     continue
                 video_info_ext = video_info_ext['data']
@@ -300,7 +296,7 @@ class BiliBiliIE(InfoExtractor):
             slice_num_set = set(len(f['entries']) for f in formats)
             if len(slice_num_set) > 1:
                 fallback_fmt = formats[-1]
-                self.report_warning(f'Found formats have different num of slices. Fallback to best format {fallback_fmt["quality_desc"]}. {bug_reports_message()}')
+                self.report_warning(f'Found formats have different num of slices. Fallback to best format {fallback_fmt["quality_desc"]}{bug_reports_message()}')
                 formats = [fallback_fmt]
                 slice_num = len(fallback_fmt['entries'])
             else:
@@ -332,7 +328,7 @@ class BiliBiliIE(InfoExtractor):
                 }
 
         bangumi_info = {}
-        if mobj.group('bangumi'):
+        if is_bangumi:
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
 
             season_number = None
@@ -374,8 +370,6 @@ class BiliBiliIE(InfoExtractor):
         return {
             **info_fmt, **bangumi_info,
             'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
-            'bv_id': bv_id,
-            'cid': cid,
             'title': title,
             'description': description,
             'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
