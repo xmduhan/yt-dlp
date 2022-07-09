@@ -6,7 +6,6 @@ import math
 
 from .common import InfoExtractor, SearchInfoExtractor
 from ..compat import (
-    compat_parse_qs,
     compat_urllib_parse_urlparse
 )
 from ..utils import (
@@ -154,17 +153,21 @@ class BiliBiliIE(InfoExtractor):
         mobj = self._match_valid_url(url)
         video_id = mobj.group('id_bv') or mobj.group('id')
 
+        webpage = self._download_webpage(url, video_id)
+        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
+
         if mobj.group('bangumi'):
-            bv_id = None
+            aid = traverse_obj(initial_state, ('epInfo', 'aid'))
+            bv_id = traverse_obj(initial_state, ('epInfo', 'bvid'))
+            cid = traverse_obj(initial_state, ('epInfo', 'cid'))
         else:
-            av_id, bv_id = self._get_video_id_set(video_id, mobj.group('id_bv') is not None)
-            video_id = av_id
+            aid = traverse_obj(initial_state, ('videoData', 'aid'))
+            bv_id = traverse_obj(initial_state, ('videoData', 'bvid'))
+            cid = traverse_obj(initial_state, ('videoData', 'cid'))
 
         page_id = mobj.group('page')
         if page_id is not None:
             page_id = int(page_id)
-
-        webpage = self._download_webpage(url, video_id)
 
         # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
         # If the video has no page argument, check to see if it's an anthology
@@ -176,30 +179,6 @@ class BiliBiliIE(InfoExtractor):
                     return r
             else:
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
-
-        if not mobj.group('bangumi'):
-            cid = self._search_regex(
-                r'\bcid(?:["\']:|=)(\d+),["\']page(?:["\']:|=)' + str(page_id), webpage, 'cid',
-                default=None
-            ) or self._search_regex(
-                r'\bcid(?:["\']:|=)(\d+)', webpage, 'cid',
-                default=None
-            ) or compat_parse_qs(self._search_regex(
-                [r'EmbedPlayer\([^)]+,\s*"([^"]+)"\)',
-                 r'EmbedPlayer\([^)]+,\s*\\"([^"]+)\\"\)',
-                 r'<iframe[^>]+src="https://secure\.bilibili\.com/secure,([^"]+)"'],
-                webpage, 'player parameters'))['cid'][0]
-        else:
-            headers = {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'Referer': url
-            }
-            headers.update(self.geo_verification_headers())
-
-            initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage,
-                                              '__INITIAL_STATE__', video_id)
-
-            cid = traverse_obj(initial_state, ('epInfo', 'cid'))
 
         headers = {
             'Accept': 'application/json',
@@ -226,11 +205,11 @@ class BiliBiliIE(InfoExtractor):
             if len(part_info) > 1:
                 title = f'{title} {page_str} {traverse_obj(part_info, (page_id - 1, "part")) or ""}'
 
-        video_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, '__playinfo__', video_id)
-        video_info = video_info.get('data') or {}
+        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, '__playinfo__', video_id)
+        play_info = play_info.get('data') or {}
 
-        videos = traverse_obj(video_info, ('dash', 'video'))
-        audios = traverse_obj(video_info, ('dash', 'audio')) or []
+        videos = traverse_obj(play_info, ('dash', 'video'))
+        audios = traverse_obj(play_info, ('dash', 'audio')) or []
 
         formats = []
         info_fmt = {}
@@ -270,7 +249,7 @@ class BiliBiliIE(InfoExtractor):
         else:
             # old video dont have dash in video_info
 
-            support_formats = video_info['support_formats'] or []
+            support_formats = play_info['support_formats'] or []
             for f in support_formats:
                 playurl = 'https://api.bilibili.com/x/player/playurl?bvid=%s&cid=%s&qn=%s' % (
                     bv_id, cid, f['quality'])
@@ -352,8 +331,6 @@ class BiliBiliIE(InfoExtractor):
                     'entries': entries
                 }
 
-        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
-
         bangumi_info = {}
         if mobj.group('bangumi'):
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
@@ -403,7 +380,7 @@ class BiliBiliIE(InfoExtractor):
             'description': description,
             'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
             'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
-            'duration': float_or_none(video_info.get('timelength'), scale=1000),
+            'duration': float_or_none(play_info.get('timelength'), scale=1000),
             'subtitles': subtitles,
             'uploader': traverse_obj(initial_state, ('upData', 'name')),
             'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
@@ -414,7 +391,7 @@ class BiliBiliIE(InfoExtractor):
             'http_headers': {
                 'Referer': url,
             },
-            '__post_extractor': self.extract_comments(video_id),
+            '__post_extractor': self.extract_comments(aid),
         }
 
     def _extract_anthology_entries(self, video_id, webpage):
@@ -450,20 +427,6 @@ class BiliBiliIE(InfoExtractor):
             return self.playlist_result(entries, bangumi_id, season_info['season_title'])
         else:
             raise ExtractorError('Unknown __INITIAL_STATE__', video_id=id)
-
-    def _get_video_id_set(self, id, is_bv):
-        query = {'bvid': id} if is_bv else {'aid': id}
-        response = self._download_json(
-            "http://api.bilibili.cn/x/web-interface/view",
-            id, query=query,
-            note='Grabbing original ID via API')
-
-        if response['code'] == -400:
-            raise ExtractorError('Video ID does not exist', expected=True, video_id=id)
-        elif response['code'] != 0:
-            raise ExtractorError(f'Unknown error occurred during API check (code {response["code"]})',
-                                 expected=True, video_id=id)
-        return response['data']['aid'], response['data']['bvid']
 
     def _get_comments(self, video_id, commentPageNumber=0):
         for idx in itertools.count(1):
