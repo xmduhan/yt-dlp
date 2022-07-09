@@ -156,6 +156,7 @@ from .bigo import BigoIE
 from .bild import BildIE
 from .bilibili import (
     BiliBiliIE,
+    BilibiliBangumiMediaIE,
     BiliBiliSearchIE,
     BilibiliCategoryIE,
     BilibiliAudioIE,

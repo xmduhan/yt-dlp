@@ -422,6 +422,33 @@ class BiliBiliIE(InfoExtractor):
             yield from children
 
 
+class BilibiliBangumiMediaIE(InfoExtractor):
+    _VALID_URL = r'https?://www\.bilibili\.com/bangumi/media/md(?P<id>\d+)'
+    _TESTS = [{
+        'url': 'https://www.bilibili.com/bangumi/media/md24097891',
+        'only_matching': True,
+    }]
+
+    def _real_extract(self, url):
+        mobj = self._match_valid_url(url)
+        media_id = mobj.group('id')
+
+        webpage = self._download_webpage(url, media_id)
+        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', media_id)
+
+        season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
+
+        url = f'https://api.bilibili.com/pgc/web/season/section?season_id={season_id}'
+        data = self._download_json(url, media_id, note=f'Downloading season info').get('result', {})
+
+        entries = []
+        episode_list = traverse_obj(data, ('main_section', 'episodes')) or []
+        for entry in episode_list:
+            entries.append(self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid']))
+
+        return self.playlist_result(entries, media_id)
+
+
 class BilibiliChannelIE(InfoExtractor):
     _VALID_URL = r'https?://space.bilibili\.com/(?P<id>\d+)(:?/channel/collectiondetail\?sid=(?P<sid>\d+))?'
     _TESTS = [{
