@@ -150,6 +150,10 @@ class BiliBiliIE(InfoExtractor):
         video_id = mobj.group('id_bv') or mobj.group('id')
 
         webpage = self._download_webpage(url, video_id)
+
+        if '开通大会员观看' in webpage:
+            raise ExtractorError(f'VIP is required for {url}', expected=True)
+
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
 
         is_bangumi = mobj.group('bangumi') is not None
@@ -199,7 +203,7 @@ class BiliBiliIE(InfoExtractor):
         if page_id is not None:
             page_str = 'p%02d' % page_id
 
-            if len(page_list_json) > 1:
+            if has_multi_p:
                 title = f'{title} {page_str} {traverse_obj(page_list_json, (page_id - 1, "part")) or ""}'
 
         id_str = f'{video_id}_{page_str}' if page_id is not None else str(video_id)
