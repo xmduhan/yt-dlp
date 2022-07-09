@@ -172,7 +172,7 @@ class BiliBiliIE(InfoExtractor):
         # If the video has no page argument, check to see if it's an anthology
         if page_id is None and not smuggled_data.get('force_noplaylist', False):
             if not self.get_param('noplaylist'):
-                r = self._extract_anthology_entries(video_id, webpage)
+                r = self._extract_anthology_entries(video_id, bv_id, webpage)
                 if r is not None:
                     self.to_screen('Downloading anthology/playlist %s - add --no-playlist to just download video' % video_id)
                     return r
@@ -386,8 +386,8 @@ class BiliBiliIE(InfoExtractor):
                 del f['entries']
 
             entries.append({
-                'id': f'{id_str}_part{idx + 1:02d}',
-                'title': f'{title}_part{idx + 1:02d}',
+                'id': f'{id_str}-Frag{idx + 1:02d}',
+                'title': f'{title}-Frag{idx + 1:02d}',
                 'formats': slice_formats,
                 'http_headers': http_headers,
             })
@@ -402,25 +402,12 @@ class BiliBiliIE(InfoExtractor):
             }
         return info_fmt
 
-    def _extract_anthology_entries(self, video_id, webpage):
+    def _extract_anthology_entries(self, video_id, bv_id, webpage):
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage,
                                           '__INITIAL_STATE__', video_id)
 
         smuggle_data = {'force_noplaylist': True}
-        if 'sectionsInfo' in initial_state:
-            # for https://www.bilibili.com/video/
-            season_info = initial_state['sectionsInfo']
-
-            entries = [{
-                '_type': 'url_transparent',
-                'url': smuggle_url('https://www.bilibili.com/video/' + episode['bvid'], smuggle_data),
-                'ie_key': BiliBiliIE.ie_key(),
-                'episode': episode.get('title')
-            } for episode in traverse_obj(season_info, ('sections', 0, 'episodes'))]
-
-            return self.playlist_result(entries, season_info['id'], season_info['title'])
-
-        elif 'epInfo' in initial_state:
+        if 'epInfo' in initial_state:
             # for https://www.bilibili.com/bangumi/play/
             bangumi_id = traverse_obj(initial_state, ('epInfo', 'aid'))
             season_info = initial_state['mediaInfo']
@@ -434,7 +421,22 @@ class BiliBiliIE(InfoExtractor):
 
             return self.playlist_result(entries, bangumi_id, season_info['season_title'])
         else:
-            raise ExtractorError('Unknown __INITIAL_STATE__', video_id=id)
+            # for https://www.bilibili.com/video/
+            title = self._html_search_regex(
+                (r'<h1[^>]+\btitle=(["\'])(?P<title>(?:(?!\1).)+)\1',
+                 r'(?s)<h1[^>]*>(?P<title>.+?)</h1>',
+                 r'<title>(?P<title>.+?)</title>'), webpage, 'title',
+                group='title')
+            json_data = self._download_json(
+                f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
+                video_id, note='Extracting videos in anthology')
+
+            if json_data['data']:
+                return self.playlist_from_matches(
+                    json_data['data'], bv_id, title, ie=BiliBiliIE.ie_key(),
+                    getter=lambda entry: 'https://www.bilibili.com/video/%s?p=%d' % (
+                    bv_id, entry['page']))
+
 
     def _get_comments(self, aid, commentPageNumber=0):
         for idx in itertools.count(1):
