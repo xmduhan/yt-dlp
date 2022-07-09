@@ -181,7 +181,7 @@ class BiliBiliIE(InfoExtractor):
             self._meta_regex('title')
         ), webpage, 'title', group='content', fatal=False)
 
-        if has_multi_p and page_id is None:
+        if not is_bangumi and has_multi_p and page_id is None:
             # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
             # If the video has no page argument and it's an anthology, download as a playlist
             if not self.get_param('noplaylist'):
