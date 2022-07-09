@@ -151,7 +151,7 @@ class BiliBiliIE(InfoExtractor):
 
         webpage = self._download_webpage(url, video_id)
 
-        if '开通大会员观看' in webpage:
+        if '开通大会员观看' in webpage and '__playinfo__' not in webpage:
             raise ExtractorError(f'VIP is required for {url}', expected=True)
 
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
