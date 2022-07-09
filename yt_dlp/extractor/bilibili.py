@@ -142,6 +142,14 @@ class BiliBiliIE(InfoExtractor):
         else:
             raise ExtractorError('Can\'t extract Bangumi episode ID')
 
+    def json2srt(self, json_data):
+        srt_data = ''
+        for idx, line in enumerate(json_data.get('body', [])):
+            srt_data += f'{idx + 1}\n'
+            srt_data += f'{srt_subtitles_timecode(line["from"])} --> {srt_subtitles_timecode(line["to"])}\n'
+            srt_data += f'{line["content"]}\n\n'
+        return srt_data
+
     def _real_extract(self, url):
         url, smuggled_data = unsmuggle_url(url, {})
 
@@ -359,6 +367,23 @@ class BiliBiliIE(InfoExtractor):
                     'entries': entries
                 })
 
+        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
+        subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
+
+        subtitles = {}
+        if self.get_param('writesubtitles', False):
+            for s in subtitle_info.get('list', []):
+                subtitle_url = s['subtitle_url']
+                subtitle_json = self._download_json(subtitle_url, video_id)
+                subtitles[s['lan']] = [{
+                    'ext': 'srt',
+                    'data': self.json2srt(subtitle_json)
+                }]
+            subtitles['danmaku'] = [{
+                'ext': 'xml',
+                'url': f'https://comment.bilibili.com/{cid}.xml',
+            }]
+
         description = self._html_search_meta('description', webpage)
         timestamp = unified_timestamp(self._html_search_regex(
             r'<time[^>]+datetime="([^"]+)"', webpage, 'upload time',
@@ -366,7 +391,6 @@ class BiliBiliIE(InfoExtractor):
             'uploadDate', webpage, 'timestamp', default=None))
         thumbnail = self._html_search_meta(['og:image', 'thumbnailUrl'], webpage)
 
-        # TODO 'view_count' requires deobfuscating Javascript
         info.update({
             'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
             'cid': cid,
@@ -375,6 +399,7 @@ class BiliBiliIE(InfoExtractor):
             'timestamp': timestamp,
             'thumbnail': thumbnail,
             'duration': float_or_none(video_info.get('timelength'), scale=1000),
+            'subtitles': subtitles
         })
 
         uploader_mobj = re.search(
@@ -394,16 +419,8 @@ class BiliBiliIE(InfoExtractor):
             'tags': traverse_obj(self._download_json(
                 f'https://api.bilibili.com/x/tag/archive/tags?aid={video_id}',
                 video_id, fatal=False, note='Downloading tags'), ('data', ..., 'tag_name')),
+            '__post_extractor': self.extract_comments(video_id)
         }
-
-        info['subtitles'] = {
-            'danmaku': [{
-                'ext': 'xml',
-                'url': f'https://comment.bilibili.com/{cid}.xml',
-            }]
-        }
-
-        top_level_info['__post_extractor'] = self.extract_comments(video_id)
 
         return {
             'id': str(video_id),
