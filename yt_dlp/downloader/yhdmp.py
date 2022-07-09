@@ -30,10 +30,8 @@ class YhdmpFD(FragmentFD):
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-        from selenium.webdriver.remote.remote_connection import LOGGER
-        LOGGER.setLevel(logging.WARNING)
-
         chrome_options = Options()
+        chrome_options.add_argument('--log-level=3')
 
         if self.headless:
             chrome_options.add_argument('--headless')
