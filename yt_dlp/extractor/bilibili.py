@@ -419,20 +419,19 @@ class BiliBiliIE(InfoExtractor):
 
 
 class BilibiliChannelIE(InfoExtractor):
-    _VALID_URL = r'https?://space.bilibili\.com/(?P<id>\d+)'
-    _API_URL = "https://api.bilibili.com/x/space/arc/search?mid=%s&pn=%d&jsonp=jsonp"
+    _VALID_URL = r'https?://space.bilibili\.com/(?P<id>\d+)(:?/channel/collectiondetail\?sid=(?P<sid>\d+))?'
     _TESTS = [{
         'url': 'https://space.bilibili.com/3985676/video',
         'info_dict': {},
         'playlist_mincount': 112,
     }]
 
-    def _entries(self, list_id):
+    def get_space_entries(self, mid):
         count, max_count = 0, None
 
         for page_num in itertools.count(1):
-            data = self._download_json(
-                self._API_URL % (list_id, page_num), list_id, note=f'Downloading page {page_num}')['data']
+            url = f"https://api.bilibili.com/x/space/arc/search?mid={mid}&pn={page_num}&jsonp=jsonp"
+            data = self._download_json(url, mid, note=f'Downloading page {page_num}').get('data', {})
 
             max_count = max_count or traverse_obj(data, ('page', 'count'))
 
@@ -440,8 +439,25 @@ class BilibiliChannelIE(InfoExtractor):
             if not entries:
                 return
             for entry in entries:
-                yield self.url_result(
-                    'https://www.bilibili.com/video/%s' % entry['bvid'],
+                yield self.url_result(f'https://www.bilibili.com/video/{entry["bvid"]}',
+                    BiliBiliIE.ie_key(), entry['bvid'])
+
+            count += len(entries)
+            if max_count and count >= max_count:
+                return
+
+    def get_space_season_entries(self, mid, sid):
+        count, max_count = 0, None
+
+        for page_num in itertools.count(1):
+            url = f"https://api.bilibili.com/x/polymer/space/seasons_archives_list?mid={mid}&season_id={sid}&page_num={page_num}&page_size=30"
+            data = self._download_json(url, sid, note=f'Downloading page {page_num}').get('data', {})
+
+            max_count = max_count or traverse_obj(data, ('page', 'total'))
+
+            entries = data.get('archives', [])
+            for entry in entries:
+                yield self.url_result(f'https://www.bilibili.com/video/{entry["bvid"]}',
                     BiliBiliIE.ie_key(), entry['bvid'])
 
             count += len(entries)
@@ -449,8 +465,18 @@ class BilibiliChannelIE(InfoExtractor):
                 return
 
     def _real_extract(self, url):
-        list_id = self._match_id(url)
-        return self.playlist_result(self._entries(list_id), list_id)
+        mobj = self._match_valid_url(url)
+        mid = mobj.group('id')
+
+        if mobj.group('sid'):
+            sid = mobj.group('sid')
+            list_id = f'{mid}_{sid}'
+            entries = list(self.get_space_season_entries(mid, sid))
+        else:
+            list_id = mid
+            entries = list(self.get_space_entries(mid))
+
+        return self.playlist_result(entries, list_id)
 
 
 class BilibiliCategoryIE(InfoExtractor):
