@@ -194,11 +194,6 @@ class BiliBiliIE(InfoExtractor):
             **self.geo_verification_headers()
         }
 
-        json_headers = {
-            **http_headers,
-            'Accept': 'application/json',
-        }
-
         # Get part title for anthologies
         page_str = 'p1'
         if page_id is not None:
@@ -248,7 +243,7 @@ class BiliBiliIE(InfoExtractor):
         else:
             # old video dont have dash in video_info
             support_formats = play_info['support_formats'] or []
-            formats = self.parse_old_flv_formats(video_id, bv_id, cid, support_formats, json_headers)
+            formats = self.parse_old_flv_formats(video_id, bv_id, cid, support_formats, http_headers)
             self._sort_formats(formats)
 
             # if all formats have same num of slices, rewrite it as multi_video
@@ -319,11 +314,11 @@ class BiliBiliIE(InfoExtractor):
             '__post_extractor': self.extract_comments(aid),
         }
 
-    def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, json_headers):
+    def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, http_headers):
         formats = []
         for f in support_formats:
             playurl = f'https://api.bilibili.com/x/player/playurl?bvid={bv_id}&cid={cid}&qn={f["quality"]}'
-            video_info_ext = self._download_json(playurl, video_id, headers=json_headers)
+            video_info_ext = self._download_json(playurl, video_id, headers=http_headers)
             if not video_info_ext:
                 continue
             video_info_ext = video_info_ext['data']
