@@ -129,14 +129,6 @@ class BiliBiliIE(InfoExtractor):
         },
     }]
 
-    def _report_error(self, result):
-        if 'message' in result:
-            raise ExtractorError('%s said: %s' % (self.IE_NAME, result['message']), expected=True)
-        elif 'code' in result:
-            raise ExtractorError('%s returns error %d' % (self.IE_NAME, result['code']), expected=True)
-        else:
-            raise ExtractorError('Can\'t extract Bangumi episode ID')
-
     def json2srt(self, json_data):
         srt_data = ''
         for idx, line in enumerate(json_data.get('body', [])):
@@ -151,7 +143,7 @@ class BiliBiliIE(InfoExtractor):
 
         webpage = self._download_webpage(url, video_id)
 
-        if '开通大会员观看' in webpage:
+        if '开通大会员观看' in webpage and '__playinfo__' not in webpage:
             raise ExtractorError(f'VIP is required for {url}', expected=True)
 
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
