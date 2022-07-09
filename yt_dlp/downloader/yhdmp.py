@@ -1,6 +1,7 @@
 import collections
 import json
 import os.path
+import re
 import time
 from pathlib import Path
 import base64
@@ -127,8 +128,6 @@ class YhdmpFD(FragmentFD):
 
                         if request_url not in response_dict:
                             response_dict[request_url] = resp_body
-                            if self.verbose:
-                                self.to_screen(f'[yhdmp] Record {request_url}, size: {len(resp_body)}, text:{resp_body_text}')
 
                             if not m3u8_text and resp_body_text and resp_body.startswith('#EXTM3U'):
                                 m3u8_text = resp_body
@@ -151,7 +150,7 @@ class YhdmpFD(FragmentFD):
                                     with open(fn, 'wb') as f:
                                         f.write(resp_body)
 
-                                    self.to_screen(f'[yhdmp] {fn} dumped, {frag_idx+1} / {len(m3u8_frag_urls)} done.')
+                                    self.to_screen(f'[yhdmp] {fn} dumped, {frag_idx+1} / {len(m3u8_frag_urls)} done, size: {len(resp_body)}.')
 
                     except Exception as e:
                         if 'No data found for resource with given identifier' in str(e):
@@ -230,7 +229,10 @@ class YhdmpFD(FragmentFD):
         for fmt in target_formats:
             url = fmt['url']
 
-            if url.endswith('-1-0.html'):
+            mobj = re.match(r'(?x)https?://www\.yhdmp\.cc/vp/[\d]+-(?P<tid>[12])-\d+\.html', url)
+            tid = int(mobj.group('tid'))
+
+            if tid == 1:
                 if self.verbose:
                     self.to_screen('[yhdmp] Type 1 Video')
 
@@ -246,7 +248,7 @@ class YhdmpFD(FragmentFD):
                 if os.path.exists(fmt_output_filename):
                     for fn in frag_file_list:
                         os.remove(fn)
-            elif url.endswith('-2-0.html'):
+            elif tid == 2:
                 if self.verbose:
                     self.to_screen('[yhdmp] Type 2 Video')
 
