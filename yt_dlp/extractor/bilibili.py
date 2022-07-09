@@ -223,7 +223,7 @@ class BiliBiliIE(InfoExtractor):
                 formats.append({
                     'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
                     'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
-                    'fps': int_or_none(video.get('frameRate') or video.get('frame_rate')),
+                    'fps': float_or_none(video.get('frameRate') or video.get('frame_rate')),
                     'width': int_or_none(video.get('width')),
                     'height': int_or_none(video.get('height')),
                     'vcodec': video.get('codecs'),
@@ -236,9 +236,6 @@ class BiliBiliIE(InfoExtractor):
                 formats.append({
                     'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
                     'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
-                    'fps': int_or_none(audio.get('frameRate') or audio.get('frame_rate')),
-                    'width': int_or_none(audio.get('width')),
-                    'height': int_or_none(audio.get('height')),
                     'acodec': audio.get('codecs'),
                     'vcodec': 'none',
                     'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
