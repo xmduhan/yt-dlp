@@ -439,7 +439,7 @@ class BilibiliBangumiMediaIE(InfoExtractor):
         season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
 
         url = f'https://api.bilibili.com/pgc/web/season/section?season_id={season_id}'
-        data = self._download_json(url, media_id, note=f'Downloading season info').get('result', {})
+        data = self._download_json(url, media_id, note='Downloading season info').get('result', {})
 
         entries = []
         episode_list = traverse_obj(data, ('main_section', 'episodes')) or []
@@ -471,7 +471,7 @@ class BilibiliChannelIE(InfoExtractor):
                 return
             for entry in entries:
                 yield self.url_result(f'https://www.bilibili.com/video/{entry["bvid"]}',
-                    BiliBiliIE.ie_key(), entry['bvid'])
+                                      BiliBiliIE.ie_key(), entry['bvid'])
 
             count += len(entries)
             if max_count and count >= max_count:
@@ -489,7 +489,7 @@ class BilibiliChannelIE(InfoExtractor):
             entries = data.get('archives', [])
             for entry in entries:
                 yield self.url_result(f'https://www.bilibili.com/video/{entry["bvid"]}',
-                    BiliBiliIE.ie_key(), entry['bvid'])
+                                      BiliBiliIE.ie_key(), entry['bvid'])
 
             count += len(entries)
             if max_count and count >= max_count:
