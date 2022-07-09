@@ -129,14 +129,6 @@ class BiliBiliIE(InfoExtractor):
         },
     }]
 
-    def _report_error(self, result):
-        if 'message' in result:
-            raise ExtractorError('%s said: %s' % (self.IE_NAME, result['message']), expected=True)
-        elif 'code' in result:
-            raise ExtractorError('%s returns error %d' % (self.IE_NAME, result['code']), expected=True)
-        else:
-            raise ExtractorError('Can\'t extract Bangumi episode ID')
-
     def json2srt(self, json_data):
         srt_data = ''
         for idx, line in enumerate(json_data.get('body', [])):
