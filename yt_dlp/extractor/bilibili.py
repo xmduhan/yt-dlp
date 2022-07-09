@@ -327,31 +327,10 @@ class BiliBiliIE(InfoExtractor):
                     'entries': entries
                 }
 
-        bangumi_info = {}
-        if is_bangumi:
-            season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
-
-            season_number = None
-            if season_id:
-                all_season_list = traverse_obj(initial_state, ('mediaInfo', 'seasons'))
-                for e_idx, e in enumerate(all_season_list):
-                    if e.get('season_id') == season_id:
-                        season_number = e_idx + 1
-                        break
-
-            bangumi_info = {
-                'series': traverse_obj(initial_state, ('mediaInfo', 'series')),
-                'season': traverse_obj(initial_state, ('mediaInfo', 'season_title')),
-                'season_id': season_id,
-                'season_number': season_number,
-                'episode': traverse_obj(initial_state, ('epInfo', 'long_title')),
-                'episode_number': int_or_none(traverse_obj(initial_state, ('epInfo', 'title'))),
-            }
-
-        subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
-
         subtitles = collections.defaultdict(list)
-        if self.get_param('writesubtitles', False):
+        if not is_bangumi and self.get_param('writesubtitles', False):
+            subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
+
             for s in subtitle_info.get('list', []):
                 subtitle_url = s['subtitle_url']
                 subtitle_json = self._download_json(subtitle_url, video_id)
@@ -364,24 +343,51 @@ class BiliBiliIE(InfoExtractor):
                 'url': f'https://comment.bilibili.com/{cid}.xml',
             }]
 
-        # description in meta has many other infos about related videos
-        description = traverse_obj(initial_state, ('videoData', 'desc'))
+        if is_bangumi:
+            season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
+
+            season_number = None
+            if season_id:
+                all_season_list = traverse_obj(initial_state, ('mediaInfo', 'seasons'))
+                for e_idx, e in enumerate(all_season_list):
+                    if e.get('season_id') == season_id:
+                        season_number = e_idx + 1
+                        break
+
+            # There is no description for episode, only has description for season
+            other_info = {
+                'timestamp': traverse_obj(initial_state, ('epInfo', 'pub_time')),
+                'thumbnail': traverse_obj(initial_state, ('epInfo', 'cover')),
+
+                'series': traverse_obj(initial_state, ('mediaInfo', 'series')),
+                'season': traverse_obj(initial_state, ('mediaInfo', 'season_title')),
+                'season_id': season_id,
+                'season_number': season_number,
+                'episode': traverse_obj(initial_state, ('epInfo', 'long_title')),
+                'episode_number': int_or_none(traverse_obj(initial_state, ('epInfo', 'title'))),
+            }
+        else:
+            # description in meta has many other infos about related videos
+            description = traverse_obj(initial_state, ('videoData', 'desc'))
+
+            other_info = {
+                'description': description,
+                'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
+                'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
+                'view_count': traverse_obj(initial_state, ('videoData', 'stat', 'view')),
+                'like_count': traverse_obj(initial_state, ('videoData', 'stat', 'like')),
+                'comment_count': traverse_obj(initial_state, ('videoData', 'stat', 'reply')),
+                'uploader': traverse_obj(initial_state, ('upData', 'name')),
+                'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
+                'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
+            }
 
         return {
-            **info_fmt, **bangumi_info,
+            **info_fmt, **other_info,
             'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
             'title': title,
-            'description': description,
-            'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
-            'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
             'duration': float_or_none(play_info.get('timelength'), scale=1000),
             'subtitles': subtitles,
-            'uploader': traverse_obj(initial_state, ('upData', 'name')),
-            'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
-            'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
-            'view_count': traverse_obj(initial_state, ('videoData', 'stat', 'view')),
-            'like_count': traverse_obj(initial_state, ('videoData', 'stat', 'like')),
-            'comment_count': traverse_obj(initial_state, ('videoData', 'stat', 'reply')),
             'http_headers': {
                 'Referer': url,
             },
