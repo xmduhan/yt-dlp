@@ -163,7 +163,6 @@ class BiliBiliIE(InfoExtractor):
             av_id, bv_id = self._get_video_id_set(video_id, mobj.group('id_bv') is not None)
             video_id = av_id
 
-        info = {}
         page_id = mobj.group('page')
         if page_id is not None:
             page_id = int(page_id)
@@ -237,6 +236,7 @@ class BiliBiliIE(InfoExtractor):
         audios = traverse_obj(video_info, ('dash', 'audio')) or []
 
         formats = []
+        info_fmt = {}
         if videos is not None:
             for idx, video in enumerate(videos):
                 formats.append({
@@ -266,14 +266,9 @@ class BiliBiliIE(InfoExtractor):
 
             self._sort_formats(formats)
 
-            info.update({
-                'id': video_id,
-                'duration': float_or_none(video_info.get('timelength'), 1000),
+            info_fmt = {
                 'formats': formats,
-                'http_headers': {
-                    'Referer': url,
-                },
-            })
+            }
 
         else:
             # old video dont have dash in video_info
@@ -325,14 +320,6 @@ class BiliBiliIE(InfoExtractor):
 
             self._sort_formats(formats)
 
-            info.update({
-                'id': video_id,
-                'duration': float_or_none(video_info.get('timelength'), 1000),
-                'http_headers': {
-                    'Referer': url,
-                },
-            })
-
             # if all formats have same num of slices, rewrite it as multi_video
             slice_num_set = set(len(f['entries']) for f in formats)
             if len(slice_num_set) > 1:
@@ -359,14 +346,14 @@ class BiliBiliIE(InfoExtractor):
                 })
 
             if len(entries) <= 1:
-                info.update({
-                    'formats': formats
-                })
+                info_fmt = {
+                    'formats': formats,
+                }
             else:
-                info.update({
+                info_fmt = {
                     '_type': 'multi_video',
                     'entries': entries
-                })
+                }
 
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
         subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
@@ -386,49 +373,30 @@ class BiliBiliIE(InfoExtractor):
             }]
 
         description = self._html_search_meta('description', webpage)
-        timestamp = unified_timestamp(self._html_search_regex(
-            r'<time[^>]+datetime="([^"]+)"', webpage, 'upload time',
-            default=None) or self._html_search_meta(
-            'uploadDate', webpage, 'timestamp', default=None))
-        thumbnail = self._html_search_meta(['og:image', 'thumbnailUrl'], webpage)
+        uploader = traverse_obj(initial_state, ('upData', 'name'))
+        uploader_id = traverse_obj(initial_state, ('upData', 'mid'))
+        thumbnail = traverse_obj(initial_state, ('videoData', 'pic'))
+        timestamp = traverse_obj(initial_state, ('videoData', 'pubdate'))
+        tags = [t['tag_name'] for t in initial_state.get('tags', [])]
 
-        info.update({
+        return {
+            **info_fmt,
             'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
+            'bv_id': bv_id,
             'cid': cid,
             'title': title,
             'description': description,
             'timestamp': timestamp,
             'thumbnail': thumbnail,
             'duration': float_or_none(video_info.get('timelength'), scale=1000),
-            'subtitles': subtitles
-        })
-
-        uploader_mobj = re.search(
-            r'<a[^>]+href="(?:https?:)?//space\.bilibili\.com/(?P<id>\d+)"[^>]*>\s*(?P<name>[^<]+?)\s*<',
-            webpage)
-        if uploader_mobj:
-            info.update({
-                'uploader': uploader_mobj.group('name').strip(),
-                'uploader_id': uploader_mobj.group('id'),
-            })
-
-        if not info.get('uploader'):
-            info['uploader'] = self._html_search_meta(
-                'author', webpage, 'uploader', default=None)
-
-        top_level_info = {
-            'tags': traverse_obj(self._download_json(
-                f'https://api.bilibili.com/x/tag/archive/tags?aid={video_id}',
-                video_id, fatal=False, note='Downloading tags'), ('data', ..., 'tag_name')),
-            '__post_extractor': self.extract_comments(video_id)
-        }
-
-        return {
-            'id': str(video_id),
-            'bv_id': bv_id,
-            'title': title,
-            'description': description,
-            **info, **top_level_info
+            'subtitles': subtitles,
+            'uploader': uploader,
+            'uploader_id': uploader_id,
+            'tags': tags,
+            'http_headers': {
+                'Referer': url,
+            },
+            '__post_extractor': self.extract_comments(video_id),
         }
 
     def _extract_anthology_entries(self, video_id, webpage):
