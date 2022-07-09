@@ -718,7 +718,7 @@ class BiliBiliPlayerIE(InfoExtractor):
         json = self._download_json(id_convert_url, aid)
         bv_id = traverse_obj(json, ('data', 'bvid'))
         return self.url_result(f'http://www.bilibili.com/video/{bv_id}/',
-            ie=BiliBiliIE.ie_key(), video_id=bv_id)
+                               ie=BiliBiliIE.ie_key(), video_id=bv_id)
 
 
 class BiliIntlBaseIE(InfoExtractor):
