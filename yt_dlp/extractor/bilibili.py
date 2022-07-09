@@ -1,4 +1,5 @@
 import base64
+import collections
 import itertools
 import functools
 import re
@@ -370,15 +371,15 @@ class BiliBiliIE(InfoExtractor):
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
         subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
 
-        subtitles = {}
+        subtitles = collections.defaultdict(list)
         if self.get_param('writesubtitles', False):
             for s in subtitle_info.get('list', []):
                 subtitle_url = s['subtitle_url']
                 subtitle_json = self._download_json(subtitle_url, video_id)
-                subtitles[s['lan']] = [{
+                subtitles[s['lan']].append({
                     'ext': 'srt',
                     'data': self.json2srt(subtitle_json)
-                }]
+                })
             subtitles['danmaku'] = [{
                 'ext': 'xml',
                 'url': f'https://comment.bilibili.com/{cid}.xml',
