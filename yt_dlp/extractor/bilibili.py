@@ -372,12 +372,14 @@ class BiliBiliIE(InfoExtractor):
                 'url': f'https://comment.bilibili.com/{cid}.xml',
             }]
 
-        description = self._html_search_meta('description', webpage)
         uploader = traverse_obj(initial_state, ('upData', 'name'))
         uploader_id = traverse_obj(initial_state, ('upData', 'mid'))
+
+        # description in meta has many other infos about related videos
+        description = traverse_obj(initial_state, ('videoData', 'desc'))
         thumbnail = traverse_obj(initial_state, ('videoData', 'pic'))
         timestamp = traverse_obj(initial_state, ('videoData', 'pubdate'))
-        tags = [t['tag_name'] for t in initial_state.get('tags', [])]
+        tags = [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t]
 
         return {
             **info_fmt,
