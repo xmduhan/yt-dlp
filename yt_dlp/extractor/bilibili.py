@@ -179,11 +179,15 @@ class BiliBiliIE(InfoExtractor):
             else:
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
 
-        json_headers = {
-            'Accept': 'application/json',
-            'Referer': url
+        http_headers = {
+            'Referer': url,
+            **self.geo_verification_headers()
         }
-        json_headers.update(self.geo_verification_headers())
+
+        json_headers = {
+            **http_headers,
+            'Accept': 'application/json',
+        }
 
         title = self._html_search_regex((
             r'<h1[^>]+title=(["])(?P<content>[^"]+)',
@@ -204,15 +208,16 @@ class BiliBiliIE(InfoExtractor):
             if len(part_info) > 1:
                 title = f'{title} {page_str} {traverse_obj(part_info, (page_id - 1, "part")) or ""}'
 
+        id_str = f'{video_id}_{page_str}' if page_id is not None else str(video_id)
+
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, '__playinfo__', video_id)
         play_info = play_info.get('data') or {}
 
         videos = traverse_obj(play_info, ('dash', 'video'))
         audios = traverse_obj(play_info, ('dash', 'audio')) or []
 
-        formats = []
-        info_fmt = {}
         if videos is not None:
+            formats = []
             for idx, video in enumerate(videos):
                 formats.append({
                     'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
@@ -244,88 +249,14 @@ class BiliBiliIE(InfoExtractor):
             info_fmt = {
                 'formats': formats,
             }
-
         else:
             # old video dont have dash in video_info
-
             support_formats = play_info['support_formats'] or []
-            for f in support_formats:
-                playurl = f'https://api.bilibili.com/x/player/playurl?bvid={bv_id}&cid={cid}&qn={f["quality"]}'
-                video_info_ext = self._download_json(playurl, video_id, headers=json_headers)
-                if not video_info_ext:
-                    continue
-                video_info_ext = video_info_ext['data']
-
-                slices = []
-                for durl in video_info_ext['durl']:
-                    slices.append({
-                        'url': durl['url'],
-                        'filesize': int_or_none(durl['size'])
-                    })
-                ext = f['format']
-                if ext.startswith('flv'):
-                    # flv, flv360, flv720
-                    ext = 'flv'
-
-                filesize = 0
-                for s in slices:
-                    if s['filesize'] is None:
-                        filesize = None
-                    else:
-                        filesize += s['filesize']
-
-                if len(slices) == 0:
-                    continue
-
-                fmt = {
-                    'url': slices[0]['url'],
-                    'ext': ext,
-                    'quality': f['quality'],
-                    'quality_desc': f['display_desc'],
-                    'height': int_or_none(f['display_desc'].rstrip('P')),
-                    'vcodec': f.get('codecs'),
-                    'acodec': None,
-                    'entries': slices,
-                    'filesize': filesize
-                }
-                formats.append(fmt)
-
+            formats = self.parse_old_flv_formats(video_id, bv_id, cid, support_formats, json_headers)
             self._sort_formats(formats)
 
             # if all formats have same num of slices, rewrite it as multi_video
-            slice_num_set = set(len(f['entries']) for f in formats)
-            if len(slice_num_set) > 1:
-                fallback_fmt = formats[-1]
-                self.report_warning(f'Found formats have different num of slices. Fallback to best format {fallback_fmt["quality_desc"]}{bug_reports_message()}')
-                formats = [fallback_fmt]
-                slice_num = len(fallback_fmt['entries'])
-            else:
-                slice_num = slice_num_set.pop()
-
-            entries = []
-            for idx in range(slice_num):
-                slice_formats = [{**f} for f in formats]
-                for f in slice_formats:
-                    f['url'] = f['entries'][idx]['url']
-                    f['filesize'] = f['entries'][idx]['filesize']
-                    del f['entries']
-
-                entries.append({
-                    'id': '%s_%s_part%02d' % (video_id, page_str, idx + 1),
-                    'title': '%s_part%02d' % (title, idx + 1),
-                    'formats': slice_formats,
-                    'http_headers': {'Referer': url},
-                })
-
-            if len(entries) <= 1:
-                info_fmt = {
-                    'formats': formats,
-                }
-            else:
-                info_fmt = {
-                    '_type': 'multi_video',
-                    'entries': entries
-                }
+            info_fmt = self.rewrite_as_multi_video(formats, id_str, title, http_headers)
 
         subtitles = collections.defaultdict(list)
         if not is_bangumi and self.get_param('writesubtitles', False):
@@ -384,15 +315,92 @@ class BiliBiliIE(InfoExtractor):
 
         return {
             **info_fmt, **other_info,
-            'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
+            'id': id_str,
             'title': title,
             'duration': float_or_none(play_info.get('timelength'), scale=1000),
             'subtitles': subtitles,
-            'http_headers': {
-                'Referer': url,
-            },
+            'http_headers': http_headers,
             '__post_extractor': self.extract_comments(aid),
         }
+
+    def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, json_headers):
+        formats = []
+        for f in support_formats:
+            playurl = f'https://api.bilibili.com/x/player/playurl?bvid={bv_id}&cid={cid}&qn={f["quality"]}'
+            video_info_ext = self._download_json(playurl, video_id, headers=json_headers)
+            if not video_info_ext:
+                continue
+            video_info_ext = video_info_ext['data']
+
+            slices = []
+            for durl in video_info_ext['durl']:
+                slices.append({
+                    'url': durl['url'],
+                    'filesize': int_or_none(durl['size'])
+                })
+            ext = f['format']
+            if ext.startswith('flv'):
+                # flv, flv360, flv720
+                ext = 'flv'
+
+            filesize = 0
+            for s in slices:
+                if s['filesize'] is None:
+                    filesize = None
+                else:
+                    filesize += s['filesize']
+
+            if len(slices) == 0:
+                continue
+
+            fmt = {
+                'url': slices[0]['url'],
+                'ext': ext,
+                'quality': f['quality'],
+                'quality_desc': f['display_desc'],
+                'height': int_or_none(f['display_desc'].rstrip('P')),
+                'vcodec': f.get('codecs'),
+                'acodec': None,
+                'entries': slices,
+                'filesize': filesize
+            }
+            formats.append(fmt)
+        return formats
+
+    def rewrite_as_multi_video(self, formats, id_str, title, http_headers):
+        slice_num_set = set(len(f['entries']) for f in formats)
+        if len(slice_num_set) > 1:
+            fallback_fmt = formats[-1]
+            self.report_warning(
+                f'Found formats have different num of slices. Fallback to best format {fallback_fmt["quality_desc"]}{bug_reports_message()}')
+            formats = [fallback_fmt]
+            slice_num = len(fallback_fmt['entries'])
+        else:
+            slice_num = slice_num_set.pop()
+        entries = []
+        for idx in range(slice_num):
+            slice_formats = [{**f} for f in formats]
+            for f in slice_formats:
+                f['url'] = f['entries'][idx]['url']
+                f['filesize'] = f['entries'][idx]['filesize']
+                del f['entries']
+
+            entries.append({
+                'id': f'{id_str}_part{idx + 1:02d}',
+                'title': f'{title}_part{idx + 1:02d}',
+                'formats': slice_formats,
+                'http_headers': http_headers,
+            })
+        if len(entries) <= 1:
+            info_fmt = {
+                'formats': formats,
+            }
+        else:
+            info_fmt = {
+                '_type': 'multi_video',
+                'entries': entries
+            }
+        return info_fmt
 
     def _extract_anthology_entries(self, video_id, webpage):
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage,
