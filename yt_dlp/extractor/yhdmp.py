@@ -6,7 +6,7 @@ from .common import InfoExtractor
 
 
 class YhdmpIE(InfoExtractor):
-    _VALID_URL = r'(?x)https?://(?:www\.yhdmp\.cc/vp/)(?P<id>[\d]+-[12]-0)\.html'
+    _VALID_URL = r'(?x)https?://(?:www\.yhdmp\.cc/vp/)(?P<id>[\d]+-[12]-\d+)\.html'
 
     _TESTS = [{
         'url': 'https://www.yhdmp.cc/vp/22296-1-0.html',
