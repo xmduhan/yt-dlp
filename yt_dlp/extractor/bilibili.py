@@ -407,17 +407,21 @@ class BiliBiliIE(InfoExtractor):
         smuggle_data = {'force_noplaylist': True}
         if 'epInfo' in initial_state:
             # for https://www.bilibili.com/bangumi/play/
-            bangumi_id = traverse_obj(initial_state, ('epInfo', 'aid'))
-            season_info = initial_state['mediaInfo']
+            season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
+            episodes = traverse_obj(initial_state, ('mediaInfo', 'episodes')) or []
+            season_title = traverse_obj(initial_state, ('mediaInfo', 'season_title'))
+
+            if len(episodes) == 0:
+                return None
 
             entries = [{
                 '_type': 'url_transparent',
                 'url': smuggle_url(episode['link'], smuggle_data),
                 'ie_key': BiliBiliIE.ie_key(),
                 'episode': episode.get('long_title')
-            } for episode in season_info['episodes']]
+            } for episode in episodes]
 
-            return self.playlist_result(entries, bangumi_id, season_info['season_title'])
+            return self.playlist_result(entries, season_id, season_title)
         else:
             # for https://www.bilibili.com/video/
             title = traverse_obj(initial_state, ('videoData', 'title'))
