@@ -166,13 +166,18 @@ class BiliBiliIE(InfoExtractor):
             bv_id = traverse_obj(initial_state, ('videoData', 'bvid'))
             cid = traverse_obj(initial_state, ('videoData', 'cid'))
 
+        page_list_json = self._download_json(
+            f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
+            video_id, note='Extracting videos in anthology')
+        page_list_json = traverse_obj(page_list_json, 'data', expected_type=list)
+
         page_id = int_or_none(mobj.group('page'))
 
         # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
         # If the video has no page argument, check to see if it's an anthology
         if page_id is None and not smuggled_data.get('force_noplaylist', False):
             if not self.get_param('noplaylist'):
-                r = self._extract_anthology_entries(video_id, bv_id, webpage)
+                r = self._extract_anthology_entries(video_id, bv_id, initial_state, page_list_json)
                 if r is not None:
                     self.to_screen('Downloading anthology/playlist %s - add --no-playlist to just download video' % video_id)
                     return r
@@ -201,12 +206,8 @@ class BiliBiliIE(InfoExtractor):
         if page_id is not None:
             page_str = 'p%02d' % page_id
 
-            page_list_json = self._download_json(f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
-                                                 video_id, note='Extracting videos in anthology',
-                                                 headers=json_headers)
-            part_info = traverse_obj(page_list_json, 'data', expected_type=list)
-            if len(part_info) > 1:
-                title = f'{title} {page_str} {traverse_obj(part_info, (page_id - 1, "part")) or ""}'
+            if len(page_list_json) > 1:
+                title = f'{title} {page_str} {traverse_obj(page_list_json, (page_id - 1, "part")) or ""}'
 
         id_str = f'{video_id}_{page_str}' if page_id is not None else str(video_id)
 
@@ -402,10 +403,7 @@ class BiliBiliIE(InfoExtractor):
             }
         return info_fmt
 
-    def _extract_anthology_entries(self, video_id, bv_id, webpage):
-        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage,
-                                          '__INITIAL_STATE__', video_id)
-
+    def _extract_anthology_entries(self, video_id, bv_id, initial_state, page_list_json):
         smuggle_data = {'force_noplaylist': True}
         if 'epInfo' in initial_state:
             # for https://www.bilibili.com/bangumi/play/
@@ -422,21 +420,12 @@ class BiliBiliIE(InfoExtractor):
             return self.playlist_result(entries, bangumi_id, season_info['season_title'])
         else:
             # for https://www.bilibili.com/video/
-            title = self._html_search_regex(
-                (r'<h1[^>]+\btitle=(["\'])(?P<title>(?:(?!\1).)+)\1',
-                 r'(?s)<h1[^>]*>(?P<title>.+?)</h1>',
-                 r'<title>(?P<title>.+?)</title>'), webpage, 'title',
-                group='title')
-            json_data = self._download_json(
-                f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
-                video_id, note='Extracting videos in anthology')
-
-            if json_data['data']:
+            title = traverse_obj(initial_state, ('videoData', 'title'))
+            if page_list_json and len(page_list_json) > 1:
                 return self.playlist_from_matches(
-                    json_data['data'], bv_id, title, ie=BiliBiliIE.ie_key(),
-                    getter=lambda entry: 'https://www.bilibili.com/video/%s?p=%d' % (
-                    bv_id, entry['page']))
-
+                    page_list_json, bv_id, title, ie=BiliBiliIE.ie_key(),
+                    getter=lambda entry: f'https://www.bilibili.com/video/{bv_id}?p={entry["page"]}'
+                )
 
     def _get_comments(self, aid, commentPageNumber=0):
         for idx in itertools.count(1):
