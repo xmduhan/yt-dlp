@@ -159,7 +159,6 @@ from .bilibili import (
     BiliBiliIE,
     BiliBiliSearchIE,
     BilibiliCategoryIE,
-    BiliBiliBangumiIE,
     BilibiliAudioIE,
     BilibiliAudioAlbumIE,
     BiliBiliPlayerIE,

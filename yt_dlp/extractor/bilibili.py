@@ -2,7 +2,6 @@ import base64
 import collections
 import itertools
 import functools
-import re
 import math
 
 from .common import InfoExtractor, SearchInfoExtractor
@@ -22,7 +21,6 @@ from ..utils import (
     parse_count,
     srt_subtitles_timecode,
     str_or_none,
-    unified_timestamp,
     smuggle_url,
     unsmuggle_url,
     urlencode_postdata,
@@ -65,7 +63,6 @@ class BiliBiliIE(InfoExtractor):
             'duration': 308.36,
         },
     }, {
-        # Tested in BiliBiliBangumiIE
         'url': 'https://www.bilibili.com/bangumi/play/ep508406',
         'only_matching': True,
     }, {
@@ -356,6 +353,28 @@ class BiliBiliIE(InfoExtractor):
                 }
 
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
+
+        bangumi_info = {}
+        if mobj.group('bangumi'):
+            season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
+
+            season_number = None
+            if season_id:
+                all_season_list = traverse_obj(initial_state, ('mediaInfo', 'seasons'))
+                for e_idx, e in enumerate(all_season_list):
+                    if e.get('season_id') == season_id:
+                        season_number = e_idx + 1
+                        break
+
+            bangumi_info = {
+                'series': traverse_obj(initial_state, ('mediaInfo', 'series')),
+                'season': traverse_obj(initial_state, ('mediaInfo', 'season_title')),
+                'season_id': season_id,
+                'season_number': season_number,
+                'episode': traverse_obj(initial_state, ('epInfo', 'long_title')),
+                'episode_number': int_or_none(traverse_obj(initial_state, ('epInfo', 'title'))),
+            }
+
         subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
 
         subtitles = collections.defaultdict(list)
@@ -372,36 +391,26 @@ class BiliBiliIE(InfoExtractor):
                 'url': f'https://comment.bilibili.com/{cid}.xml',
             }]
 
-        uploader = traverse_obj(initial_state, ('upData', 'name'))
-        uploader_id = traverse_obj(initial_state, ('upData', 'mid'))
-
         # description in meta has many other infos about related videos
         description = traverse_obj(initial_state, ('videoData', 'desc'))
-        thumbnail = traverse_obj(initial_state, ('videoData', 'pic'))
-        timestamp = traverse_obj(initial_state, ('videoData', 'pubdate'))
-        tags = [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t]
-
-        view_count = traverse_obj(initial_state, ('videoData', 'stat', 'view'))
-        like_count = traverse_obj(initial_state, ('videoData', 'stat', 'like'))
-        comment_count = traverse_obj(initial_state, ('videoData', 'stat', 'reply'))
 
         return {
-            **info_fmt,
+            **info_fmt, **bangumi_info,
             'id': f'{video_id}_{page_str}' if page_id is not None else str(video_id),
             'bv_id': bv_id,
             'cid': cid,
             'title': title,
             'description': description,
-            'timestamp': timestamp,
-            'thumbnail': thumbnail,
+            'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
+            'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
             'duration': float_or_none(video_info.get('timelength'), scale=1000),
             'subtitles': subtitles,
-            'uploader': uploader,
-            'uploader_id': uploader_id,
-            'tags': tags,
-            'view_count': view_count,
-            'like_count': like_count,
-            'comment_count': comment_count,
+            'uploader': traverse_obj(initial_state, ('upData', 'name')),
+            'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
+            'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
+            'view_count': traverse_obj(initial_state, ('videoData', 'stat', 'view')),
+            'like_count': traverse_obj(initial_state, ('videoData', 'stat', 'like')),
+            'comment_count': traverse_obj(initial_state, ('videoData', 'stat', 'reply')),
             'http_headers': {
                 'Referer': url,
             },
@@ -479,69 +488,6 @@ class BiliBiliIE(InfoExtractor):
         }
         for children in map(self._get_all_children, reply.get('replies') or []):
             yield from children
-
-
-class BiliBiliBangumiIE(InfoExtractor):
-    _VALID_URL = r'https?://bangumi\.bilibili\.com/anime/(?P<id>\d+)'
-
-    IE_NAME = 'bangumi.bilibili.com'
-    IE_DESC = 'BiliBili番剧'
-
-    _TESTS = [{
-        'url': 'http://bangumi.bilibili.com/anime/1869',
-        'info_dict': {
-            'id': '1869',
-            'title': '混沌武士',
-            'description': 'md5:6a9622b911565794c11f25f81d6a97d2',
-        },
-        'playlist_count': 26,
-    }, {
-        'url': 'http://bangumi.bilibili.com/anime/1869',
-        'info_dict': {
-            'id': '1869',
-            'title': '混沌武士',
-            'description': 'md5:6a9622b911565794c11f25f81d6a97d2',
-        },
-        'playlist': [{
-            'md5': '91da8621454dd58316851c27c68b0c13',
-            'info_dict': {
-                'id': '40062',
-                'ext': 'mp4',
-                'title': '混沌武士',
-                'description': '故事发生在日本的江户时代。风是一个小酒馆的打工女。一日，酒馆里来了一群恶霸，虽然他们的举动令风十分不满，但是毕竟风只是一届女流，无法对他们采取什么行动，只能在心里嘟哝。这时，酒家里又进来了个“不良份子...',
-                'timestamp': 1414538739,
-                'upload_date': '20141028',
-                'episode': '疾风怒涛 Tempestuous Temperaments',
-                'episode_number': 1,
-            },
-        }],
-        'params': {
-            'playlist_items': '1',
-        },
-    }]
-
-    @classmethod
-    def suitable(cls, url):
-        return False if BiliBiliIE.suitable(url) else super(BiliBiliBangumiIE, cls).suitable(url)
-
-    def _real_extract(self, url):
-        bangumi_id = self._match_id(url)
-
-        webpage = self._download_webpage(url, bangumi_id)
-        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage,
-                                          '__INITIAL_STATE__', bangumi_id)
-
-        bangumi_id = traverse_obj(initial_state, ('epInfo', 'aid'))
-        season_info = initial_state['mediaInfo']
-
-        entries = [{
-            '_type': 'url_transparent',
-            'url': episode['link'],
-            'ie_key': BiliBiliIE.ie_key(),
-            'episode': episode.get('long_title')
-        } for episode in season_info['episodes']]
-
-        return self.playlist_result(entries, bangumi_id, season_info['season_title'])
 
 
 class BilibiliChannelIE(InfoExtractor):
