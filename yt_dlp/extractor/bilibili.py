@@ -149,14 +149,10 @@ class BiliBiliIE(InfoExtractor):
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, 'initial state', video_id)
 
         is_bangumi = mobj.group('bangumi') is not None
-        if is_bangumi:
-            aid = traverse_obj(initial_state, ('epInfo', 'aid'))
-            bv_id = traverse_obj(initial_state, ('epInfo', 'bvid'))
-            cid = traverse_obj(initial_state, ('epInfo', 'cid'))
-        else:
-            aid = traverse_obj(initial_state, ('videoData', 'aid'))
-            bv_id = traverse_obj(initial_state, ('videoData', 'bvid'))
-            cid = traverse_obj(initial_state, ('videoData', 'cid'))
+        video_data = traverse_obj(initial_state, 'epInfo', 'videoData') or {}
+        aid = initial_state.get('aid')
+        bv_id = initial_state.get('bv_id')
+        cid = initial_state.get('cid')
 
         page_list_json = self._download_json(
             f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
