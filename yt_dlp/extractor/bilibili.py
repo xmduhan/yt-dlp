@@ -194,12 +194,11 @@ class BiliBiliIE(InfoExtractor):
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
 
-        videos = traverse_obj(play_info, ('dash', 'video'))
-        audios = traverse_obj(play_info, ('dash', 'audio')) or []
-
         if 'dash' in play_info:
+            audios = traverse_obj(play_info, ('dash', 'audio')) or []
+
             formats = []
-            for idx, video in enumerate(videos):
+            for idx, video in enumerate(traverse_obj(play_info, ('dash', 'video')) or []):
                 formats.append({
                     'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
                     'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
@@ -312,7 +311,6 @@ class BiliBiliIE(InfoExtractor):
                 'url': slices[0]['url'],
                 'ext': ext,
                 'quality': f['quality'],
-                'quality_desc': f['display_desc'],
                 'height': int_or_none(f['display_desc'].rstrip('P')),
                 'vcodec': f.get('codecs'),
                 'acodec': None,
