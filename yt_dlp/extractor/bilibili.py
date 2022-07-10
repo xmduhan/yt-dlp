@@ -148,8 +148,10 @@ class BiliBiliIE(InfoExtractor):
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, 'initial state', video_id)
 
         is_bangumi = mobj.group('bangumi') is not None
-        video_data = traverse_obj(initial_state, 'epInfo', 'videoData') or {}
-        bv_id = video_data.get('bv_id')
+        video_data = initial_state.get('epInfo') or initial_state.get('videoData') or {}
+        if 'bvid' not in video_data:
+            raise ExtractorError(f'Unknown webpage json schema{bug_reports_message()}')
+        bv_id = video_data['bvid']
 
         page_list_json = traverse_obj(
             self._download_json(
