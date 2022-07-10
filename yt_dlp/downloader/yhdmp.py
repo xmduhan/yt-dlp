@@ -91,10 +91,9 @@ class YhdmpFD(FragmentFD):
             progress_start_dt = datetime.datetime.now()
             frag_idx = 0
             last_tick_bytes_counter = 0
+            progress_report_finished = False
             while True:
                 stopped = driver.execute_script("return document.getElementsByTagName('video')[0].ended")
-                if stopped:
-                    break
 
                 browser_log = driver.get_log('performance')
 
@@ -178,27 +177,32 @@ class YhdmpFD(FragmentFD):
                                     })
                             raise
 
-                elapsed = (datetime.datetime.now() - progress_start_dt).seconds
-                progress_info = {
-                    'info_dict': {},
-                    'status': 'downloading',
-                    'filename': temp_output_fn_prefix,
-                    'fragment_index': frag_idx,
-                    'fragment_count': len(m3u8_frag_urls),
-                    'elapsed': elapsed,
-                    'downloaded_bytes': progress_bytes_counter,
-                    'speed': (progress_bytes_counter - last_tick_bytes_counter) / 1.0,
-                }
-                if frag_idx + 1 == len(m3u8_frag_urls):
-                    progress_info['status'] = 'finished'
-                elif frag_idx >= 10:
-                    total_bytes_estimate = progress_bytes_counter * 1.0 / (frag_idx + 1) * len(m3u8_frag_urls)
-                    progress_info.update({
-                        'total_bytes_estimate': total_bytes_estimate,
-                        'eta': elapsed * (1.0 / progress_bytes_counter * total_bytes_estimate - 1.0)
-                    })
-                self.report_progress(progress_info)
+                if not progress_report_finished:
+                    elapsed = (datetime.datetime.now() - progress_start_dt).seconds
+                    progress_info = {
+                        'info_dict': {},
+                        'status': 'downloading',
+                        'filename': temp_output_fn_prefix,
+                        'fragment_index': frag_idx,
+                        'fragment_count': len(m3u8_frag_urls),
+                        'elapsed': elapsed,
+                        'downloaded_bytes': progress_bytes_counter,
+                        'speed': (progress_bytes_counter - last_tick_bytes_counter) / 1.0,
+                    }
+                    if frag_idx + 1 == len(m3u8_frag_urls):
+                        progress_info['status'] = 'finished'
+                        progress_report_finished = True
+                    elif frag_idx >= 10:
+                        total_bytes_estimate = progress_bytes_counter * 1.0 / (frag_idx + 1) * len(m3u8_frag_urls)
+                        progress_info.update({
+                            'total_bytes_estimate': total_bytes_estimate,
+                            'eta': elapsed * (1.0 / progress_bytes_counter * total_bytes_estimate - 1.0)
+                        })
+                    self.report_progress(progress_info)
                 last_tick_bytes_counter = progress_bytes_counter
+
+                if stopped:
+                    break
 
                 time.sleep(1)
 
