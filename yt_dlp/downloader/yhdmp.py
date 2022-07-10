@@ -177,7 +177,7 @@ class YhdmpFD(FragmentFD):
                                     })
                             raise
 
-                if not progress_report_finished:
+                if not progress_report_finished and m3u8_frag_urls is not None:
                     elapsed = (datetime.datetime.now() - progress_start_dt).seconds
                     progress_info = {
                         'info_dict': {},
