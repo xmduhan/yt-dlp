@@ -62,20 +62,11 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
                 EC.presence_of_element_located((By.TAG_NAME, 'video'))
             )
 
-            buttons = [b for b in driver.find_elements(By.TAG_NAME, 'button')]
-            play_button = [b for b in buttons
-                           if b.get_attribute('class') == 'dplayer-icon dplayer-play-icon'
-                           ][0]
-
-            volume_button = [b for b in buttons
-                             if b.get_attribute('class') == 'dplayer-icon dplayer-volume-icon'
-                             ][0]
-
             self.to_screen('[yhdmp] start play video at x16 speed ...')
-            play_button.click()
-            volume_button.click()  # set volume=0
-
+            driver.execute_script("document.getElementsByTagName('video')[0].volume = 0")
+            driver.execute_script("document.getElementsByTagName('video')[0].muted = true")
             driver.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
+            driver.execute_script("document.getElementsByTagName('video')[0].play()")
 
             self.add_progress_hook(self.report_progress)
 
