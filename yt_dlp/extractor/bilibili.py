@@ -14,6 +14,7 @@ from ..utils import (
     filter_dict,
     int_or_none,
     float_or_none,
+    format_field,
     mimetype2ext,
     qualities,
     traverse_obj,
@@ -186,14 +187,10 @@ class BiliBiliIE(InfoExtractor):
         }
 
         # Get part title for anthologies
-        page_str = 'p1'
-        if page_id is not None:
-            page_str = 'p%02d' % page_id
+        if page_id is not None and has_multi_p:
+            title = f'{title} p{page_id:02d} {traverse_obj(page_list_json, (page_id - 1, "part")) or ""}'
 
-            if has_multi_p:
-                title = f'{title} {page_str} {traverse_obj(page_list_json, (page_id - 1, "part")) or ""}'
-
-        id_str = f'{video_id}_{page_str}' if page_id is not None else str(video_id)
+        id_str = f'{video_id}{format_field(page_id, template= f"_p%02d", default="")}'
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id).get('data', {})
 
