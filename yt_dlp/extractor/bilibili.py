@@ -242,22 +242,6 @@ class BiliBiliIE(InfoExtractor):
             # if all formats have same num of slices, rewrite it as multi_video
             info_fmt = self.rewrite_as_multi_video(formats, id_str, title, http_headers)
 
-        subtitles = collections.defaultdict(list)
-        if not is_bangumi and self.get_param('writesubtitles', False):
-            subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
-
-            for s in subtitle_info.get('list', []):
-                subtitle_url = s['subtitle_url']
-                subtitle_json = self._download_json(subtitle_url, video_id)
-                subtitles[s['lan']].append({
-                    'ext': 'srt',
-                    'data': self.json2srt(subtitle_json)
-                })
-            subtitles['danmaku'] = [{
-                'ext': 'xml',
-                'url': f'https://comment.bilibili.com/{video_data.get("cid")}.xml',
-            }]
-
         if is_bangumi:
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
 
@@ -302,16 +286,34 @@ class BiliBiliIE(InfoExtractor):
             'id': id_str,
             'title': title,
             'duration': float_or_none(play_info.get('timelength'), scale=1000),
-            'subtitles': subtitles,
+            'subtitles': self.extract_subtitles(video_id, initial_state, video_data.get("cid"), is_bangumi),
             'http_headers': http_headers,
             '__post_extractor': self.extract_comments(video_data.get('aid')),
         }
+
+    def _get_subtitles(self, video_id, initial_state, cid, is_bangumi):
+        subtitles = collections.defaultdict(list)
+        if not is_bangumi and self.get_param('writesubtitles', False):
+            subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
+
+            for s in subtitle_info.get('list', []):
+                subtitle_url = s['subtitle_url']
+                subtitle_json = self._download_json(subtitle_url, video_id)
+                subtitles[s['lan']].append({
+                    'ext': 'srt',
+                    'data': self.json2srt(subtitle_json)
+                })
+            subtitles['danmaku'] = [{
+                'ext': 'xml',
+                'url': f'https://comment.bilibili.com/{cid}.xml',
+            }]
+        return subtitles
 
     def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, http_headers):
         formats = []
         for f in support_formats:
             playurl = f'https://api.bilibili.com/x/player/playurl?bvid={bv_id}&cid={cid}&qn={f["quality"]}'
-            video_info_ext = self._download_json(playurl, video_id, headers=http_headers)
+            video_info_ext = self._download_json(playurl, video_id, headers=http_headers, fatal=False)
             if not video_info_ext:
                 continue
             video_info_ext = video_info_ext['data']
