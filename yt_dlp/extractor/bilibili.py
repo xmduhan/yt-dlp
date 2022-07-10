@@ -127,6 +127,10 @@ class BiliBiliIE(InfoExtractor):
         'params': {
             'skip_download': True,
         },
+    }, {
+        # old flv frags format example
+        'url': 'https://www.bilibili.com/video/BV1Xx411P7Ks?p=1',
+        'only_matching': True,
     }]
 
     def json2srt(self, json_data):
@@ -313,7 +317,6 @@ class BiliBiliIE(InfoExtractor):
                 'quality': f['quality'],
                 'height': int_or_none(f['display_desc'].rstrip('P')),
                 'vcodec': f.get('codecs'),
-                'acodec': None,
                 'entries': slices,
                 'filesize': filesize
             }
