@@ -1,71 +1,74 @@
-import re
 
 from .common import InfoExtractor
 from ..utils import (
+    bug_reports_message,
+    ExtractorError,
     float_or_none,
+    format_field,
     int_or_none,
     traverse_obj,
+    parse_codecs,
 )
 
 
-class AcFunVideoIE(InfoExtractor):
+class AcFunVideoBaseIE(InfoExtractor):
+    def parse_format_and_subtitle(self, video_id, video_info):
+        if 'ksPlayJson' not in video_info:
+            raise ExtractorError(f'Unknown webpage json schema{bug_reports_message()}')
+        playjson = self._parse_json(video_info['ksPlayJson'], video_id)
+
+        fmt_jobj = traverse_obj(playjson, ('adaptationSet', 0, 'representation'))
+        formats = []
+        subtitles = []
+        for video in fmt_jobj:
+            format_list, subtitle_list = self._extract_m3u8_formats_and_subtitles(video['url'], video_id)
+
+            formats += [{
+                **fmt,
+                'fps': int_or_none(video.get('frameRate')),
+                'width': int_or_none(video.get('width')),
+                'height': int_or_none(video.get('height')),
+                'tbr': float_or_none(video.get('avgBitrate')),
+                'ext': 'mp4',
+                'subtitles': subtitle_list,  # it seems AcFun do not have subtitles
+                **parse_codecs(video.get('codecs', ''))
+            } for fmt in format_list]
+
+            subtitles += subtitle_list
+
+        self._sort_formats(formats)
+
+        return {
+            'formats': formats,
+            'subtitles': subtitles,
+            'duration': float_or_none(video_info.get('durationMillis'), 1000),
+            'timestamp': int_or_none(video_info.get('uploadTime'), 1000),
+        }
+
+
+class AcFunVideoIE(AcFunVideoBaseIE):
     _VALID_URL = r'(?x)https?://(?:www\.acfun\.cn/v/)ac(?P<id>[_\d]+)'
 
     _TESTS = [{
         'url': 'https://www.acfun.cn/v/ac35457073',
         'info_dict': {
-            'id': '35283657',
-            'title': '【十五周年庆】文章区UP主祝AcFun生日快乐！',
-            'duration': 455.21,
-            'timestamp': 1655289827,
+            'id': '35457073',
+            'title': '1 8 岁 现 状',
+            'thumbnail': 'https://tx-free-imgs.acfun.cn/newUpload/51246077_82bcf86c32c54c4d80cbd624ba4cc38c.jpeg?imageslim',
+            'description': '“赶紧回去！班主任查班了！”',
+            'uploader': '锤子game',
+            'uploader_id': '51246077',
+            'tags': ['电子竞技', 'LOL', 'CF', '搞笑', '真人'],
+            'view_count': 31917,
+            'like_count': 1850,
+            'comment_count': 288,
+            'duration': 174.208,
+            'timestamp': 1656403967
         },
         'params': {
-            # m3u8 download
-            'skip_download': True,
+            'skip_download': 'm3u8',
         },
-        'skip': 'Geo-restricted to China',
     }]
-
-    def parse_format(self, info, video_id):
-        vcodec, acodec = None, None
-
-        codec_str = info.get('codecs') or ''
-        m = re.match('(?P<vc>[^,]+),(?P<ac>[^,]+)', codec_str)
-        if m:
-            vcodec = m.group("vc")
-            acodec = m.group("ac")
-
-        formats, _ = self._extract_m3u8_formats_and_subtitles(
-            info['url'], video_id)
-
-        # it seems AcFun do not have subtitles
-
-        return {
-            **formats[0],
-            'fps': int_or_none(info.get('frameRate')),
-            'width': int_or_none(info.get('width')),
-            'height': int_or_none(info.get('height')),
-            'vcodec': vcodec,
-            'acodec': acodec,
-            'tbr': float_or_none(info.get('avgBitrate')),
-            'ext': 'mp4'
-        }
-
-    def parse_format_list(self, jobj, video_id):
-        formats = []
-        for video in jobj:
-            fmt = self.parse_format(video, video_id)
-            formats.append(fmt)
-
-        self._sort_formats(formats)
-
-        return formats
-
-    def gen_other_video_info_map(self, video_info):
-        return {
-            'duration': float_or_none(video_info.get('durationMillis'), 1000),
-            'timestamp': int_or_none(video_info.get('uploadTime'), 1000),
-        }
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
@@ -73,41 +76,40 @@ class AcFunVideoIE(InfoExtractor):
         webpage = self._download_webpage(url, video_id)
         json_all = self._search_json(r'window.videoInfo\s*=\s*', webpage, 'videoInfo', video_id)
 
+        if 'currentVideoInfo' not in json_all:
+            raise ExtractorError(f'Unknown webpage json schema{bug_reports_message()}')
         video_info = json_all['currentVideoInfo']
-        playjson = self._parse_json(video_info['ksPlayJson'], video_id)
+
+        title = json_all.get('title', '')
         video_internal_id = traverse_obj(json_all, ('currentVideoInfo', 'id'))
+        if 'videoList' in json_all and video_internal_id is not None:
+            video_list = json_all['videoList']
+            p_idx, p_video_info = next(
+                (idx + 1, v) for (idx, v) in enumerate(video_list)
+                if v['id'] == video_internal_id)
 
-        formats = self.parse_format_list(traverse_obj(playjson, ('adaptationSet', 0, 'representation')), video_id)
-
-        video_list = json_all['videoList']
-        p_idx, video_info = [(idx + 1, v) for (idx, v) in enumerate(video_list)
-                             if v['id'] == video_internal_id
-                             ][0]
-
-        title = json_all['title']
-        if len(video_list) > 1:
-            title = f"{title} P{p_idx:02d} {video_info['title']}"
+            if len(video_list) > 1:
+                title = f'{title} P{p_idx:02d} {p_video_info["title"]}'
 
         return {
             'id': video_id,
             'title': title,
-            'formats': formats,
             'thumbnail': json_all.get('coverUrl'),
             'description': json_all.get('description'),
             'uploader': traverse_obj(json_all, ('user', 'name')),
             'uploader_id': traverse_obj(json_all, ('user', 'href')),
-            'tags': [t['name'] for t in json_all.get('tagList', []) if 'name' in t],
+            'tags': traverse_obj(json_all, ('tagList', ..., 'name')),
             'view_count': int_or_none(json_all.get('viewCount')),
             'like_count': int_or_none(json_all.get('likeCountShow')),
             'comment_count': int_or_none(json_all.get('commentCountShow')),
             'http_headers': {
                 'Referer': url,
             },
-            **self.gen_other_video_info_map(video_info)
+            **self.parse_format_and_subtitle(video_id, video_info)
         }
 
 
-class AcFunBangumiIE(AcFunVideoIE):
+class AcFunBangumiIE(AcFunVideoBaseIE):
     _VALID_URL = r'(?x)https?://(?:www\.acfun\.cn/bangumi/)(?P<id>aa[_\d]+(?:\?ac=\d+)?)'
 
     _TESTS = [{
@@ -120,7 +122,7 @@ class AcFunBangumiIE(AcFunVideoIE):
         },
         'params': {
             # m3u8 download
-            'skip_download': True,
+            'skip_download': 'm3u8',
         },
         'skip': 'Geo-restricted to China',
     }, {
@@ -131,38 +133,37 @@ class AcFunBangumiIE(AcFunVideoIE):
     def _real_extract(self, url):
         video_id = self._match_id(url)
 
-        has_ac_idx = False
-        mobj = re.match(r'(?P<id>aa[_\d]+)(?:\?ac=(?P<ac_idx>\d+))?', video_id)
-        if mobj.group('ac_idx'):
-            has_ac_idx = True
-            video_id = f"{mobj.group('id')}_ac={mobj.group('ac_idx')}"
+        base_id, ac_idx = self._search_regex(r'(?P<id>aa[_\d]+)(?:\?ac=(?P<ac_idx>\d+))?', video_id,
+                                             'ac_idx_parse', group=['id', 'ac_idx']) or (None, None)
+        if base_id is not None:
+            video_id = f'{base_id}{format_field(ac_idx, template="_%s")}'
 
         webpage = self._download_webpage(url, video_id)
         json_bangumi_data = self._search_json(r'window.bangumiData\s*=\s*', webpage, 'bangumiData', video_id)
 
-        other_info = {}
-        if not has_ac_idx:
+        info = {}
+        if not ac_idx:
+            if 'currentVideoInfo' not in json_bangumi_data:
+                raise ExtractorError(f'Unknown webpage json schema{bug_reports_message()}')
             video_info = json_bangumi_data['currentVideoInfo']
-            title = json_bangumi_data['showTitle']
+            title = json_bangumi_data.get('showTitle', '')
             season_id = json_bangumi_data.get('bangumiId')
-            all_season_list = json_bangumi_data.get('relatedBangumis', [])
 
             season_number = None
-            for e_idx, e in enumerate(all_season_list):
-                if e.get('id') == season_id:
-                    season_number = e_idx + 1
-                    break
+            if season_id:
+                season_number = next((
+                    idx + 1 for (idx, v) in enumerate(json_bangumi_data.get('relatedBangumis', []))
+                    if v.get('id') == season_id), 1)
 
             json_bangumi_list = self._search_json(r'window.bangumiList\s*=\s*', webpage, 'bangumiList', video_id) or {}
             video_internal_id = int_or_none(traverse_obj(json_bangumi_data, ('currentVideoInfo', 'id')))
             episode_number = None
             if video_internal_id:
-                for e_idx, e in enumerate(json_bangumi_list.get('items', [])):
-                    if e.get('videoId') == video_internal_id:
-                        episode_number = e_idx + 1
-                        break
+                episode_number = next(
+                    idx + 1 for (idx, v) in enumerate(json_bangumi_list.get('items', []))
+                    if v.get('videoId') == video_internal_id)
 
-            other_info.update({
+            info.update({
                 'thumbnail': json_bangumi_data.get('image'),
                 'comment_count': int_or_none(json_bangumi_data.get('commentCount')),
                 'season': json_bangumi_data.get('bangumiTitle'),
@@ -174,19 +175,17 @@ class AcFunBangumiIE(AcFunVideoIE):
         else:
             # if has ac_idx, this url is a proxy to other video which is at https://www.acfun.cn/v/ac
             # the normal video_id is not in json
+            if 'hlVideoInfo' not in json_bangumi_data:
+                raise ExtractorError(f'Unknown webpage json schema{bug_reports_message()}')
             video_info = json_bangumi_data['hlVideoInfo']
-            title = video_info['title']
-
-        playlist = self._parse_json(video_info['ksPlayJson'], video_id)
-        formats = self.parse_format_list(traverse_obj(playlist, ('adaptationSet', 0, 'representation')), video_id)
+            title = video_info.get('title', '')
 
         return {
             'id': video_id,
             'title': title,
-            'formats': formats,
             'http_headers': {
                 'Referer': url,
             },
-            ** other_info,
-            ** self.gen_other_video_info_map(video_info)
+            ** info,
+            **self.parse_format_and_subtitle(video_id, video_info)
         }
