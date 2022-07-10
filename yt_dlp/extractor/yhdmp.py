@@ -1,8 +1,9 @@
 
 import re
+import time
 
 from .common import InfoExtractor
-from ..utils import ExtractorError
+from ..utils import ExtractorError, int_or_none, float_or_none
 
 
 class YhdmpIE(InfoExtractor):
@@ -18,7 +19,7 @@ class YhdmpIE(InfoExtractor):
 
         # yhdmp obfuscate video info, use headless browner to run it
 
-        chrome_wait_timeout = self.get_param('selenium_browner_timeout', 10)
+        chrome_wait_timeout = self.get_param('selenium_browner_timeout', 20)
         headless = self.get_param('selenium_browner_headless', True)
 
         from selenium import webdriver
@@ -66,22 +67,45 @@ class YhdmpIE(InfoExtractor):
                 }
 
             video_url = video_e.get_attribute('src')
+
+            self.to_screen('play video to detect video metadata ...')
+            driver.execute_script("document.getElementsByTagName('video')[0].volume = 0")
+            driver.execute_script("document.getElementsByTagName('video')[0].muted = true")
+            driver.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
+            driver.execute_script("document.getElementsByTagName('video')[0].play()")
+
+            videoHeight, videoWidth = None, None
+            for _ in range(chrome_wait_timeout):
+                videoHeight = driver.execute_script("return document.getElementsByTagName('video')[0].videoHeight")
+                videoWidth = driver.execute_script("return document.getElementsByTagName('video')[0].videoWidth")
+
+                if videoHeight == 0:
+                    videoHeight, videoWidth = None, None
+                    time.sleep(1)
+                else:
+                    break
+
+            fmt_info = {
+                'width': int_or_none(videoWidth),
+                'height': int_or_none(videoHeight)
+            }
+
             if '.mp4?' in video_url:
                 return {
                     **info_dict,
-                    'formats': [{'url': video_url}],
+                    'formats': [{'url': video_url, **fmt_info}],
                 }
             if '?dpvt=' in video_url:
                 return {
                     **info_dict,
-                    'formats': [{'url': video_url, 'ext': 'mp4'}],
+                    'formats': [{'url': video_url, 'ext': 'mp4', **fmt_info}],
                 }
             if video_url.startswith('blob:https://www.yhdmp.cc/'):
                 return {
                     **info_dict,
                     'formats': [{'url': url,
                                  'protocol': 'yhdmp_obfuscate_m3u8',
-                                 'ext': 'mp4'}],
+                                 'ext': 'mp4', **fmt_info}],
                 }
         finally:
             self.to_screen('Quit chrome and cleanup temp profile...')
