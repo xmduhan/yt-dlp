@@ -2137,6 +2137,7 @@ from .yandexvideo import (
 )
 from .yapfiles import YapFilesIE
 from .yesjapan import YesJapanIE
+from .yhdmp import YhdmpIE
 from .yinyuetai import YinYueTaiIE
 from .ynet import YnetIE
 from .youjizz import YouJizzIE
