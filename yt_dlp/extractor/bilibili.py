@@ -67,13 +67,12 @@ class BiliBiliIE(InfoExtractor):
         'url': 'http://www.bilibili.tv/video/av1074402/',
         'only_matching': True,
     }, {
-        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
+        'url': 'https://www.bilibili.com/bangumi/play/ss897',
         'info_dict': {
-            'id': '508406_part1',
+            'id': 'ss897',
             'ext': 'mp4',
-            'title': '间谍过家家：第3话 任务3 准备考试'
+            'title': '神的记事本：第2话 你与旅行包'
         },
-        'skip': 'Geo-restricted to China',
     }, {
         'url': 'http://www.bilibili.com/video/av8903802/',
         'info_dict': {
@@ -196,8 +195,7 @@ class BiliBiliIE(InfoExtractor):
 
         id_str = f'{video_id}_{page_str}' if page_id is not None else str(video_id)
 
-        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)
-        play_info = play_info.get('data') or {}
+        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id).get('data', {})
 
         videos = traverse_obj(play_info, ('dash', 'video'))
         audios = traverse_obj(play_info, ('dash', 'audio')) or []
@@ -283,24 +281,6 @@ class BiliBiliIE(InfoExtractor):
             '__post_extractor': self.extract_comments(video_data.get('aid')),
         }
 
-    def _get_subtitles(self, video_id, initial_state, cid, is_bangumi):
-        subtitles = collections.defaultdict(list)
-        if not is_bangumi and self.get_param('writesubtitles', False):
-            subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
-
-            for s in subtitle_info.get('list', []):
-                subtitle_url = s['subtitle_url']
-                subtitle_json = self._download_json(subtitle_url, video_id)
-                subtitles[s['lan']].append({
-                    'ext': 'srt',
-                    'data': self.json2srt(subtitle_json)
-                })
-            subtitles['danmaku'] = [{
-                'ext': 'xml',
-                'url': f'https://comment.bilibili.com/{cid}.xml',
-            }]
-        return subtitles
-
     def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, id_str, title, http_headers):
         formats = []
         for f in support_formats:
@@ -384,6 +364,24 @@ class BiliBiliIE(InfoExtractor):
             }
         return info_fmt
 
+    def _get_subtitles(self, video_id, initial_state, cid, is_bangumi):
+        subtitles = collections.defaultdict(list)
+        if not is_bangumi and self.get_param('writesubtitles', False):
+            subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
+
+            for s in subtitle_info.get('list', []):
+                subtitle_url = s['subtitle_url']
+                subtitle_json = self._download_json(subtitle_url, video_id)
+                subtitles[s['lan']].append({
+                    'ext': 'srt',
+                    'data': self.json2srt(subtitle_json)
+                })
+            subtitles['danmaku'] = [{
+                'ext': 'xml',
+                'url': f'https://comment.bilibili.com/{cid}.xml',
+            }]
+        return subtitles
+
     def _get_comments(self, aid, commentPageNumber=0):
         for idx in itertools.count(1):
             replies = traverse_obj(
@@ -417,23 +415,24 @@ class BilibiliBangumiMediaIE(InfoExtractor):
     }]
 
     def _real_extract(self, url):
-        mobj = self._match_valid_url(url)
-        media_id = mobj.group('id')
+        media_id = self._match_id(url)
 
         webpage = self._download_webpage(url, media_id)
-        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', media_id)
+        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, 'initial_state', media_id)
 
         season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
 
-        url = f'https://api.bilibili.com/pgc/web/season/section?season_id={season_id}'
-        data = self._download_json(url, media_id, note='Downloading season info').get('result', {})
+        episode_list = traverse_obj(
+            self._download_json(
+                f'https://api.bilibili.com/pgc/web/season/section?season_id={season_id}',
+                media_id, note='Downloading season info'
+            ).get('result', {}),
+            ('main_section', 'episodes')) or []
 
-        entries = []
-        episode_list = traverse_obj(data, ('main_section', 'episodes')) or []
-        for entry in episode_list:
-            entries.append(self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid']))
-
-        return self.playlist_result(entries, media_id)
+        return self.playlist_result(
+               [self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid'])
+                for entry in episode_list],
+               media_id)
 
 
 class BilibiliChannelIE(InfoExtractor):
