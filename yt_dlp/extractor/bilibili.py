@@ -721,9 +721,9 @@ class BiliBiliPlayerIE(InfoExtractor):
     def _real_extract(self, url):
         aid = self._match_id(url)
 
-        id_convert_url = f'https://api.bilibili.com/x/web-interface/view?aid={aid}'
-        json = self._download_json(id_convert_url, aid)
-        bv_id = traverse_obj(json, ('data', 'bvid'))
+        bv_id = traverse_obj(
+            self._download_json(f'https://api.bilibili.com/x/web-interface/view?aid={aid}', aid),
+            ('data', 'bvid'))
         return self.url_result(f'http://www.bilibili.com/video/{bv_id}/',
                                ie=BiliBiliIE.ie_key(), video_id=bv_id)
 
