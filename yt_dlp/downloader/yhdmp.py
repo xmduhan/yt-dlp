@@ -1,4 +1,5 @@
 import collections
+import datetime
 import json
 import os.path
 import re
@@ -79,10 +80,17 @@ class YhdmpFD(FragmentFD):
 
             driver.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
 
+            self.add_progress_hook(self.report_progress)
+
             response_dict = dict()
             m3u8_text = None
             m3u8_frag_urls = None
             m3u8_frag_file_list = []
+
+            progress_bytes_counter = 0
+            progress_start_dt = datetime.datetime.now()
+            frag_idx = 0
+            last_tick_bytes_counter = 0
             while True:
                 stopped = driver.execute_script("return document.getElementsByTagName('video')[0].ended")
                 if stopped:
@@ -134,8 +142,6 @@ class YhdmpFD(FragmentFD):
                                 # self.to_screen('[yhdmp] load m3u8')
 
                                 m3u8_frag_urls = [l for l in m3u8_text.split('\n') if l.startswith('http')]
-                                if self.verbose:
-                                    self.to_screen(f'[yhdmp] has {len(m3u8_frag_urls)} fragments')
 
                             if m3u8_frag_urls:
                                 try:
@@ -150,8 +156,7 @@ class YhdmpFD(FragmentFD):
                                     with open(fn, 'wb') as f:
                                         f.write(resp_body)
 
-                                    self.to_screen(f'[yhdmp] {fn} dumped, {frag_idx+1} / {len(m3u8_frag_urls)} done, size: {len(resp_body)}.')
-
+                                    progress_bytes_counter += len(resp_body)
                     except Exception as e:
                         if 'No data found for resource with given identifier' in str(e):
                             if '.m3u8' not in request_url:
@@ -162,9 +167,43 @@ class YhdmpFD(FragmentFD):
                             if self.verbose:
                                 print(f'[yhdmp] {request_url}, No resource with given identifier found')
                         else:
+
+                            self.report_progress({
+                                        'info_dict': {},
+                                        'status': 'error',
+                                        'filename': temp_output_fn_prefix,
+                                        'downloaded_bytes': progress_bytes_counter,
+                                        'elapsed': (datetime.datetime.now() - progress_start_dt).seconds,
+                                        'fragment_count': len(m3u8_frag_urls)
+                                    })
                             raise
 
+                elapsed = (datetime.datetime.now() - progress_start_dt).seconds
+                progress_info = {
+                    'info_dict': {},
+                    'status': 'downloading',
+                    'filename': temp_output_fn_prefix,
+                    'fragment_index': frag_idx,
+                    'fragment_count': len(m3u8_frag_urls),
+                    'elapsed': elapsed,
+                    'downloaded_bytes': progress_bytes_counter,
+                    'speed': (progress_bytes_counter - last_tick_bytes_counter) / 1.0,
+                }
+                if frag_idx + 1 == len(m3u8_frag_urls):
+                    progress_info['status'] = 'finished'
+                elif frag_idx >= 10:
+                    total_bytes_estimate = progress_bytes_counter * 1.0 / (frag_idx + 1) * len(m3u8_frag_urls)
+                    progress_info.update({
+                        'total_bytes_estimate': total_bytes_estimate,
+                        'eta': elapsed * (1.0 / progress_bytes_counter * total_bytes_estimate - 1.0)
+                    })
+                self.report_progress(progress_info)
+                last_tick_bytes_counter = progress_bytes_counter
+
                 time.sleep(1)
+
+            # end line for progress
+            print()
 
             m3u8_frag_file_list.sort(key=lambda s: s)
             return m3u8_frag_file_list
