@@ -468,8 +468,9 @@ class BilibiliChannelIE(InfoExtractor):
         count, max_count = 0, None
 
         for page_num in itertools.count(1):
-            url = f"https://api.bilibili.com/x/polymer/space/seasons_archives_list?mid={mid}&season_id={sid}&page_num={page_num}&page_size=30"
-            data = self._download_json(url, sid, note=f'Downloading page {page_num}').get('data', {})
+            data = self._download_json(
+                f"https://api.bilibili.com/x/polymer/space/seasons_archives_list?mid={mid}&season_id={sid}&page_num={page_num}&page_size=30",
+                sid, note=f'Downloading page {page_num}').get('data', {})
 
             max_count = max_count or traverse_obj(data, ('page', 'total'))
 
