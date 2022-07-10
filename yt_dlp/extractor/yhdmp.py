@@ -1,12 +1,12 @@
 
 import re
-import time
 
 from .common import InfoExtractor
+from ..utils import ExtractorError
 
 
 class YhdmpIE(InfoExtractor):
-    _VALID_URL = r'(?x)https?://(?:www\.yhdmp\.cc/vp/)(?P<id>[\d]+-[12]-\d+)\.html'
+    _VALID_URL = r'(?x)https?://(?:www\.yhdmp\.cc/vp/)(?P<id>\d+-\d+-\d+)\.html'
 
     _TESTS = [{
         'url': 'https://www.yhdmp.cc/vp/22296-1-0.html',
@@ -16,29 +16,75 @@ class YhdmpIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
 
-        params = self._downloader.params
-        webpage_try_num = params.get('yhdmp_webpage_retry_num', 0) + 1
+        # yhdmp obfuscate video info, use headless browner to run it
 
-        for idx in range(webpage_try_num):
-            try:
-                webpage = self._download_webpage(url, video_id)
-                break
-            except Exception as e:
-                print(e)
-                print(f'download_webpage failed retry ({idx+1}/{webpage_try_num})...')
-                time.sleep(3)
-                if idx == webpage_try_num - 1:
-                    raise
+        chrome_wait_timeout = self.get_param('selenium_browner_timeout', 10)
+        headless = self.get_param('selenium_browner_headless', True)
 
-        title = self._search_regex(r'<title>(?P<t>[^<]+)</title>', webpage, 'title', group='t')
+        from selenium import webdriver
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-        title_mobj = re.match(r'(?P<t>.*?)\—在线播放\—樱花动漫\(P\)', title)
-        if title_mobj.group('t'):
-            title = title_mobj.group('t')
+        chrome_options = Options()
+        chrome_options.add_argument('--log-level=3')
 
-        return {
-            'id': video_id,
-            'title': title,
-            'formats': [{'url': url, 'protocol': 'yhdmp', 'ext': 'mp4'}],
-            '_type': 'video',
-        }
+        if headless:
+            chrome_options.add_argument('--headless')
+
+        prefs = {"profile.managed_default_content_settings": {'images': 2}}
+        chrome_options.add_experimental_option("prefs", prefs)
+
+        caps = DesiredCapabilities.CHROME
+        caps['goog:loggingPrefs'] = {'performance': 'ALL'}
+
+        self.to_screen(f'start chrome to query video page (timeout {chrome_wait_timeout}s) ...')
+        driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
+        try:
+            driver.get(url)
+
+            iframe_e = WebDriverWait(driver, chrome_wait_timeout).until(
+                EC.presence_of_element_located((By.ID, 'yh_playfram'))
+            )
+
+            title = driver.find_element(By.TAG_NAME, 'title').get_attribute('innerText')
+            title_mobj = re.match(r'(?P<t>.*?)\—在线播放\—樱花动漫\(P\)', title)
+            if title_mobj.group('t'):
+                title = title_mobj.group('t')
+
+            driver.switch_to.frame(iframe_e)
+            video_e = WebDriverWait(driver, chrome_wait_timeout).until(
+                EC.presence_of_element_located((By.TAG_NAME, 'video'))
+            )
+
+            info_dict = {
+                    'id': video_id,
+                    'title': title,
+                    '_type': 'video',
+                }
+
+            video_url = video_e.get_attribute('src')
+            if '.mp4?' in video_url:
+                return {
+                    **info_dict,
+                    'formats': [{'url': video_url}],
+                }
+            if '?dpvt=' in video_url:
+                return {
+                    **info_dict,
+                    'formats': [{'url': video_url, 'ext': 'mp4'}],
+                }
+            if video_url.startswith('blob:https://www.yhdmp.cc/'):
+                return {
+                    **info_dict,
+                    'formats': [{'url': url,
+                                 'protocol': 'yhdmp_obfuscate_m3u8',
+                                 'ext': 'mp4'}],
+                }
+        finally:
+            self.to_screen('Quit chrome and cleanup temp profile...')
+            driver.quit()
+
+        raise ExtractorError(f'unknown format {url}')

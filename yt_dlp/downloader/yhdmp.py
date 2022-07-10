@@ -2,26 +2,23 @@ import collections
 import datetime
 import json
 import os.path
-import re
 import time
 from pathlib import Path
 import base64
-import logging
 
-from . import get_suitable_downloader
-from ..utils import traverse_obj
+from ..utils import traverse_obj, PostProcessingError
 from .fragment import FragmentFD
 from ..postprocessor import FFmpegConcatPP, FFmpegPostProcessor
 
 
-class YhdmpFD(FragmentFD):
+class YhdmpObfuscateM3U8FD(FragmentFD):
     FD_NAME = 'yhdmp'
 
     def __init__(self, ydl, params):
         FragmentFD.__init__(self, ydl, params)
 
         self.verbose = params.get('verbose', False)
-        self.chrome_wait_timeout = params.get('selenium_browner_timeout', 10)
+        self.chrome_wait_timeout = params.get('selenium_browner_timeout', 20)
         self.headless = params.get('selenium_browner_headless', True)
 
     def type1_download_frags(self, url, temp_output_fn_prefix):
@@ -89,7 +86,6 @@ class YhdmpFD(FragmentFD):
 
             progress_bytes_counter = 0
             progress_start_dt = datetime.datetime.now()
-            frag_idx = 0
             last_tick_bytes_counter = 0
             progress_report_finished = False
             while True:
@@ -138,7 +134,8 @@ class YhdmpFD(FragmentFD):
 
                             if not m3u8_text and resp_body_text and resp_body.startswith('#EXTM3U'):
                                 m3u8_text = resp_body
-                                # self.to_screen('[yhdmp] load m3u8')
+                                if self.verbose:
+                                    self.to_screen('[yhdmp] load m3u8')
 
                                 m3u8_frag_urls = [l for l in m3u8_text.split('\n') if l.startswith('http')]
 
@@ -166,7 +163,6 @@ class YhdmpFD(FragmentFD):
                             if self.verbose:
                                 print(f'[yhdmp] {request_url}, No resource with given identifier found')
                         else:
-
                             self.report_progress({
                                         'info_dict': {},
                                         'status': 'error',
@@ -183,17 +179,17 @@ class YhdmpFD(FragmentFD):
                         'info_dict': {},
                         'status': 'downloading',
                         'filename': temp_output_fn_prefix,
-                        'fragment_index': frag_idx,
+                        'fragment_index': len(m3u8_frag_file_list),
                         'fragment_count': len(m3u8_frag_urls),
                         'elapsed': elapsed,
                         'downloaded_bytes': progress_bytes_counter,
                         'speed': (progress_bytes_counter - last_tick_bytes_counter) / 1.0,
                     }
-                    if frag_idx + 1 == len(m3u8_frag_urls):
+                    if len(m3u8_frag_file_list) == len(m3u8_frag_urls):
                         progress_info['status'] = 'finished'
                         progress_report_finished = True
-                    elif frag_idx >= 10:
-                        total_bytes_estimate = progress_bytes_counter * 1.0 / (frag_idx + 1) * len(m3u8_frag_urls)
+                    elif len(m3u8_frag_file_list) >= 10:
+                        total_bytes_estimate = progress_bytes_counter * 1.0 / len(m3u8_frag_file_list) * len(m3u8_frag_urls)
                         progress_info.update({
                             'total_bytes_estimate': total_bytes_estimate,
                             'eta': elapsed * (1.0 / progress_bytes_counter * total_bytes_estimate - 1.0)
@@ -215,54 +211,6 @@ class YhdmpFD(FragmentFD):
             self.to_screen('[yhdmp] Quit chrome and cleanup temp profile...')
             driver.quit()
 
-    def type2_get_video_url(self, url):
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-
-        from selenium.webdriver.remote.remote_connection import LOGGER
-        LOGGER.setLevel(logging.WARNING)
-
-        chrome_options = Options()
-
-        if self.headless:
-            chrome_options.add_argument('--headless')
-
-        prefs = {"profile.managed_default_content_settings": {'images': 2}}
-        chrome_options.add_experimental_option("prefs", prefs)
-
-        caps = DesiredCapabilities.CHROME
-        caps['goog:loggingPrefs'] = {'performance': 'ALL'}
-
-        self.to_screen(f'[yhdmp] start chrome to query video page (timeout {self.chrome_wait_timeout}s) ...')
-        driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
-
-        try:
-            driver.get(url)
-
-            iframe_e = WebDriverWait(driver, self.chrome_wait_timeout).until(
-                EC.presence_of_element_located((By.ID, 'yh_playfram'))
-            )
-
-            driver.switch_to.frame(iframe_e)
-
-            video_e = WebDriverWait(driver, self.chrome_wait_timeout).until(
-                EC.presence_of_element_located((By.TAG_NAME, 'video'))
-            )
-
-            video_url = video_e.get_attribute('src')
-            if self.verbose:
-                self.to_screen(f'[yhdmp] get video_url {video_url}')
-
-            return video_url
-
-        finally:
-            self.to_screen('[yhdmp] Quit chrome and cleanup temp profile...')
-            driver.quit()
-
     def real_download(self, filename, info_dict):
         requested_formats = [{**info_dict, **fmt} for fmt in info_dict.get('requested_formats', [])]
         target_formats = requested_formats or [info_dict]
@@ -272,44 +220,26 @@ class YhdmpFD(FragmentFD):
         for fmt in target_formats:
             url = fmt['url']
 
-            mobj = re.match(r'(?x)https?://www\.yhdmp\.cc/vp/[\d]+-(?P<tid>[12])-\d+\.html', url)
-            tid = int(mobj.group('tid'))
+            if self.verbose:
+                self.to_screen('[yhdmp] format: yhdmp_obfuscate_m3u8')
 
-            if tid == 1:
-                if self.verbose:
-                    self.to_screen('[yhdmp] Type 1 Video')
+            fmt_output_filename = filename
+            temp_output_fn = fmt_output_filename[:-len(Path(fmt_output_filename).suffix)]
 
-                fmt_output_filename = filename
-                temp_output_fn = fmt_output_filename[:-len(Path(fmt_output_filename).suffix)]
+            frag_file_list = self.type1_download_frags(url, temp_output_fn)
 
-                frag_file_list = self.type1_download_frags(url, temp_output_fn)
+            if not (ffmpeg_tester.available and ffmpeg_tester.probe_available):
+                raise PostProcessingError('ffmpeg or ffprobe is missing, cannot merge frags.')
 
-                assert ffmpeg_tester.available and ffmpeg_tester.probe_available
+            self.to_screen(f'[yhdmp] Concatenating {len(frag_file_list)} files ...')
+            origin_verbose = self.params['verbose']
+            self.params['verbose'] = False
+            concat_pp = FFmpegConcatPP(self.ydl)
+            concat_pp.concat_files(frag_file_list, fmt_output_filename)
+            self.params['verbose'] = origin_verbose
 
-                origin_verbose = self.params['verbose']
-                self.params['verbose'] = False
-                concat_pp = FFmpegConcatPP(self.ydl)
-                concat_pp.concat_files(frag_file_list, fmt_output_filename)
-                self.params['verbose'] = origin_verbose
-
-                if os.path.exists(fmt_output_filename):
-                    for fn in frag_file_list:
-                        os.remove(fn)
-            elif tid == 2:
-                if self.verbose:
-                    self.to_screen('[yhdmp] Type 2 Video')
-
-                video_url = self.type2_get_video_url(url)
-
-                dl = get_suitable_downloader({'url': video_url}, self.params, to_stdout=(filename == '-'))
-                dl = dl(self.ydl, self.params)
-                info = {
-                    'http_headers': fmt.get('http_headers'),
-                    'url': video_url
-                }
-                dl.download(filename, info)
-            else:
-                self.to_screen(f'{url} is not supported')
-                return False
+            if os.path.exists(fmt_output_filename):
+                for fn in frag_file_list:
+                    os.remove(fn)
 
         return True
