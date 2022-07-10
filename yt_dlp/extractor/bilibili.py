@@ -192,12 +192,12 @@ class BiliBiliIE(InfoExtractor):
 
         id_str = f'{video_id}{format_field(page_id, template= f"_p%02d", default="")}'
 
-        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id).get('data', {})
+        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
 
         videos = traverse_obj(play_info, ('dash', 'video'))
         audios = traverse_obj(play_info, ('dash', 'audio')) or []
 
-        if videos is not None:
+        if 'dash' in play_info:
             formats = []
             for idx, video in enumerate(videos):
                 formats.append({
@@ -228,7 +228,7 @@ class BiliBiliIE(InfoExtractor):
                 'formats': formats,
             }
         else:
-            # old video dont have dash in video_info
+            # old video
             info = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
                                               play_info['support_formats'] or [], id_str,
                                               title, http_headers)
