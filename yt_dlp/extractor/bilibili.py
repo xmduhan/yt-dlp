@@ -150,9 +150,7 @@ class BiliBiliIE(InfoExtractor):
 
         is_bangumi = mobj.group('bangumi') is not None
         video_data = traverse_obj(initial_state, 'epInfo', 'videoData') or {}
-        aid = initial_state.get('aid')
-        bv_id = initial_state.get('bv_id')
-        cid = initial_state.get('cid')
+        bv_id = video_data.get('bv_id')
 
         page_list_json = self._download_json(
             f'https://api.bilibili.com/x/player/pagelist?bvid={bv_id}&jsonp=jsonp',
@@ -235,7 +233,8 @@ class BiliBiliIE(InfoExtractor):
         else:
             # old video dont have dash in video_info
             support_formats = play_info['support_formats'] or []
-            formats = self.parse_old_flv_formats(video_id, bv_id, cid, support_formats, http_headers)
+            formats = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
+                                                 support_formats, http_headers)
             self._sort_formats(formats)
 
             # if all formats have same num of slices, rewrite it as multi_video
@@ -254,7 +253,7 @@ class BiliBiliIE(InfoExtractor):
                 })
             subtitles['danmaku'] = [{
                 'ext': 'xml',
-                'url': f'https://comment.bilibili.com/{cid}.xml',
+                'url': f'https://comment.bilibili.com/{video_data.get("cid")}.xml',
             }]
 
         if is_bangumi:
@@ -303,7 +302,7 @@ class BiliBiliIE(InfoExtractor):
             'duration': float_or_none(play_info.get('timelength'), scale=1000),
             'subtitles': subtitles,
             'http_headers': http_headers,
-            '__post_extractor': self.extract_comments(aid),
+            '__post_extractor': self.extract_comments(video_data.get('aid')),
         }
 
     def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, http_headers):
