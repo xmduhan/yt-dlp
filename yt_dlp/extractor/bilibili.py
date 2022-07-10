@@ -234,13 +234,9 @@ class BiliBiliIE(InfoExtractor):
             }
         else:
             # old video dont have dash in video_info
-            support_formats = play_info['support_formats'] or []
-            formats = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
-                                                 support_formats, http_headers)
-            self._sort_formats(formats)
-
-            # if all formats have same num of slices, rewrite it as multi_video
-            info = self.rewrite_as_multi_video(formats, id_str, title, http_headers)
+            info = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
+                                              play_info['support_formats'] or [], id_str,
+                                              title, http_headers)
 
         if is_bangumi:
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
@@ -264,11 +260,9 @@ class BiliBiliIE(InfoExtractor):
                 'episode_number': int_or_none(traverse_obj(initial_state, ('epInfo', 'title'))),
             })
         else:
-            # description in meta has many other infos about related videos
-            description = traverse_obj(initial_state, ('videoData', 'desc'))
-
             info.update({
-                'description': description,
+                # description in meta has many other infos about related videos
+                'description': traverse_obj(initial_state, ('videoData', 'desc')),
                 'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
                 'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
                 'view_count': traverse_obj(initial_state, ('videoData', 'stat', 'view')),
@@ -307,7 +301,7 @@ class BiliBiliIE(InfoExtractor):
             }]
         return subtitles
 
-    def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, http_headers):
+    def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, id_str, title, http_headers):
         formats = []
         for f in support_formats:
             playurl = f'https://api.bilibili.com/x/player/playurl?bvid={bv_id}&cid={cid}&qn={f["quality"]}'
@@ -349,7 +343,11 @@ class BiliBiliIE(InfoExtractor):
                 'filesize': filesize
             }
             formats.append(fmt)
-        return formats
+
+        self._sort_formats(formats)
+
+        # if all formats have same num of slices, rewrite it as multi_video
+        return self.rewrite_as_multi_video(formats, id_str, title, http_headers)
 
     def rewrite_as_multi_video(self, formats, id_str, title, http_headers):
         slice_num_set = set(len(f['entries']) for f in formats)
