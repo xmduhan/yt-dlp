@@ -153,7 +153,7 @@ class BiliBiliIE(InfoExtractor):
 
         page_list_json = traverse_obj(
             self._download_json(
-                f'https://api.bilibili.com/x/player/pagelist', video_id,
+                'https://api.bilibili.com/x/player/pagelist', video_id,
                 fatal=False, query={'bvid': bv_id, 'jsonp': 'jsonp'},
                 note='Extracting videos in anthology'),
             'data', expected_type=list) or []
@@ -430,9 +430,8 @@ class BilibiliBangumiMediaIE(InfoExtractor):
             ('main_section', 'episodes')) or []
 
         return self.playlist_result(
-               [self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid'])
-                for entry in episode_list],
-               media_id)
+            [self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid']) for entry in episode_list],
+            media_id)
 
 
 class BilibiliChannelIE(InfoExtractor):
