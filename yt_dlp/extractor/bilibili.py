@@ -229,7 +229,7 @@ class BiliBiliIE(InfoExtractor):
 
             self._sort_formats(formats)
 
-            info_fmt = {
+            info = {
                 'formats': formats,
             }
         else:
@@ -240,7 +240,7 @@ class BiliBiliIE(InfoExtractor):
             self._sort_formats(formats)
 
             # if all formats have same num of slices, rewrite it as multi_video
-            info_fmt = self.rewrite_as_multi_video(formats, id_str, title, http_headers)
+            info = self.rewrite_as_multi_video(formats, id_str, title, http_headers)
 
         if is_bangumi:
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
@@ -252,7 +252,7 @@ class BiliBiliIE(InfoExtractor):
             ), None)
 
             # There is no description for episode, only has description for season
-            other_info = {
+            info.update({
                 'timestamp': traverse_obj(initial_state, ('epInfo', 'pub_time')),
                 'thumbnail': traverse_obj(initial_state, ('epInfo', 'cover')),
 
@@ -262,12 +262,12 @@ class BiliBiliIE(InfoExtractor):
                 'season_number': season_number,
                 'episode': traverse_obj(initial_state, ('epInfo', 'long_title')),
                 'episode_number': int_or_none(traverse_obj(initial_state, ('epInfo', 'title'))),
-            }
+            })
         else:
             # description in meta has many other infos about related videos
             description = traverse_obj(initial_state, ('videoData', 'desc'))
 
-            other_info = {
+            info.update({
                 'description': description,
                 'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
                 'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
@@ -277,10 +277,10 @@ class BiliBiliIE(InfoExtractor):
                 'uploader': traverse_obj(initial_state, ('upData', 'name')),
                 'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
                 'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
-            }
+            })
 
         return {
-            **info_fmt, **other_info,
+            **info,
             'id': id_str,
             'title': title,
             'duration': float_or_none(play_info.get('timelength'), scale=1000),
