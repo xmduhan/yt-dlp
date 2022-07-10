@@ -155,7 +155,7 @@ class BiliBiliIE(InfoExtractor):
         page_list_json = traverse_obj(
             self._download_json(
                 f'https://api.bilibili.com/x/player/pagelist', video_id,
-                fatal=False, query={'bvid': bv_id, 'jsonp': 'jsonp'}
+                fatal=False, query={'bvid': bv_id, 'jsonp': 'jsonp'},
                 note='Extracting videos in anthology'),
             'data', expected_type=list) or []
         has_multi_p = len(page_list_json or []) > 1
