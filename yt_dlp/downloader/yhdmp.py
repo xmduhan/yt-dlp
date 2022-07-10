@@ -243,8 +243,12 @@ class YhdmpFD(FragmentFD):
 
                 assert ffmpeg_tester.available and ffmpeg_tester.probe_available
 
+                origin_verbose = self.params['verbose']
+                self.params['verbose'] = False
                 concat_pp = FFmpegConcatPP(self.ydl)
                 concat_pp.concat_files(frag_file_list, fmt_output_filename)
+                self.params['verbose'] = origin_verbose
+
                 if os.path.exists(fmt_output_filename):
                     for fn in frag_file_list:
                         os.remove(fn)
