@@ -200,7 +200,7 @@ class BiliBiliIE(InfoExtractor):
 
         id_str = f'{video_id}_{page_str}' if page_id is not None else str(video_id)
 
-        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, '__playinfo__', video_id)
+        play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)
         play_info = play_info.get('data') or {}
 
         videos = traverse_obj(play_info, ('dash', 'video'))
