@@ -205,7 +205,7 @@ class BiliBiliIE(InfoExtractor):
             info['formats'].append({
                 'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
                 'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
-                'fps': float_or_none(video.get('frameRate') or video.get('frame_rate')),
+                'fps': self.fix_fps(video.get('frameRate') or video.get('frame_rate')),
                 'width': int_or_none(video.get('width')),
                 'height': int_or_none(video.get('height')),
                 'vcodec': video.get('codecs'),
@@ -279,6 +279,24 @@ class BiliBiliIE(InfoExtractor):
             'http_headers': http_headers,
             '__post_extractor': self.extract_comments(video_data.get('aid')),
         }
+
+    def fix_fps(self, s):
+        if s is None:
+            return None
+        try:
+            v = float(s)
+        except Exception:
+            return None
+
+        if v <= 0:
+            return None
+
+        all_fps = [8, 16, 24, 25, 30, 48, 50, 60]
+        all_fps.sort(key=lambda f: abs(1 - v / f))
+        if abs(1 - v / all_fps[0]) < max(3.0 / 60, 2.0 / 24):
+            return all_fps[0]
+
+        return v
 
     def parse_old_flv_formats(self, video_id, bv_id, cid, support_formats, id_str, title, http_headers):
         formats = []
