@@ -245,13 +245,11 @@ class BiliBiliIE(InfoExtractor):
         if is_bangumi:
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
 
-            season_number = None
-            if season_id:
-                all_season_list = traverse_obj(initial_state, ('mediaInfo', 'seasons'))
-                for e_idx, e in enumerate(all_season_list):
-                    if e.get('season_id') == season_id:
-                        season_number = e_idx + 1
-                        break
+            season_number = season_id and next((
+                idx + 1 for idx, e in enumerate(
+                    traverse_obj(initial_state, ('mediaInfo', 'seasons')) or [])
+                if e.get('season_id') == season_id
+            ), None)
 
             # There is no description for episode, only has description for season
             other_info = {
