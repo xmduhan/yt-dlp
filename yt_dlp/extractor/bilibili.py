@@ -198,43 +198,42 @@ class BiliBiliIE(InfoExtractor):
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
 
-        if 'dash' in play_info:
-            audios = traverse_obj(play_info, ('dash', 'audio')) or []
+        info = {'formats': []}
+        audios = traverse_obj(play_info, ('dash', 'audio')) or []
 
-            formats = []
-            for idx, video in enumerate(traverse_obj(play_info, ('dash', 'video')) or []):
-                formats.append({
-                    'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
-                    'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
-                    'fps': float_or_none(video.get('frameRate') or video.get('frame_rate')),
-                    'width': int_or_none(video.get('width')),
-                    'height': int_or_none(video.get('height')),
-                    'vcodec': video.get('codecs'),
-                    'acodec': 'none' if audios else None,
-                    'tbr': float_or_none(video.get('bandwidth'), scale=1000),
-                    'filesize': int_or_none(video.get('size')),
-                })
+        for idx, video in enumerate(traverse_obj(play_info, ('dash', 'video')) or []):
+            info['formats'].append({
+                'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
+                'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
+                'fps': float_or_none(video.get('frameRate') or video.get('frame_rate')),
+                'width': int_or_none(video.get('width')),
+                'height': int_or_none(video.get('height')),
+                'vcodec': video.get('codecs'),
+                'acodec': 'none' if audios else None,
+                'tbr': float_or_none(video.get('bandwidth'), scale=1000),
+                'filesize': int_or_none(video.get('size')),
+            })
 
-            for audio in audios:
-                formats.append({
-                    'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
-                    'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
-                    'acodec': audio.get('codecs'),
-                    'vcodec': 'none',
-                    'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
-                    'filesize': int_or_none(audio.get('size'))
-                })
+        for audio in audios:
+            info['formats'].append({
+                'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
+                'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
+                'acodec': audio.get('codecs'),
+                'vcodec': 'none',
+                'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
+                'filesize': int_or_none(audio.get('size'))
+            })
 
-            self._sort_formats(formats)
+        self._sort_formats(info['formats'])
 
-            info = {
-                'formats': formats,
-            }
-        else:
-            # old video
-            info = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
-                                              play_info['support_formats'] or [], id_str,
-                                              title, http_headers)
+        if not info['formats']:
+            if 'dash' not in play_info:
+                # old video
+                info = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
+                                                  play_info['support_formats'] or [], id_str,
+                                                  title, http_headers)
+            else:
+                raise ExtractorError(f'Unknown webpage schema{bug_reports_message()}')
 
         if is_bangumi:
             season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
