@@ -146,7 +146,7 @@ class BiliBiliIE(InfoExtractor):
         if '开通大会员观看' in webpage and '__playinfo__' not in webpage:
             raise ExtractorError(f'VIP is required for {url}', expected=True)
 
-        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, '__INITIAL_STATE__', video_id)
+        initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, 'initial state', video_id)
 
         is_bangumi = mobj.group('bangumi') is not None
         if is_bangumi:
