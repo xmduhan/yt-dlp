@@ -193,6 +193,7 @@ class BiliBiliIE(InfoExtractor):
         format_desc_dict = {
             r['quality']: traverse_obj(r, 'new_description', 'display_desc')
             for r in traverse_obj(play_info, 'support_formats', expected_type=list) or []
+            if 'quality' in r
         }
 
         info = {'formats': []}
