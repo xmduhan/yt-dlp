@@ -331,6 +331,7 @@ class BiliBiliIE(InfoExtractor):
                 'url': slices[0]['url'],
                 'ext': ext,
                 'quality': f['quality'],
+                'format_note': traverse_obj(f, 'new_description', 'display_desc'),
                 'height': int_or_none(f['display_desc'].rstrip('P')),
                 'vcodec': f.get('codecs'),
                 'entries': slices,
