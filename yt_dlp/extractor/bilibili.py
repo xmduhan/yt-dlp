@@ -45,19 +45,19 @@ class BiliBiliIE(InfoExtractor):
     _TESTS = [{
         'url': 'http://www.bilibili.com/video/av1074402/',
         'info_dict': {
-            'thumbnail': 're:^https?://.*\.(jpg|jpeg)$',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg)$',
             'uploader': '菊子桑',
             'uploader_id': '156160',
             'id': '1074402',
             'title': '【金坷垃】金泡沫',
             'duration': 308.36,
             'upload_date': '20140420',
-            'like_count': int,
-            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
-            'comment_count': int,
             'timestamp': 1397983878,
+            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
+            'like_count': int,
+            'comment_count': int,
             'view_count': int,
-            'tags': ['金坷垃', '邓紫棋', '顶上去报复社会', '该来的总会来的', '金克拉是检验歌曲的唯一标准', '坷垃教主', '治愈系坷垃'],
+            'tags': list,
         },
         'params': {
             'skip_download': True,
@@ -100,7 +100,7 @@ class BiliBiliIE(InfoExtractor):
             'uploader': '阿滴英文',
             'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
             'duration': 554.117,
-            'tags': ['英语', '公开课', '人文', '文化', '阿滴英文'],
+            'tags': list,
             'comment_count': int,
             'upload_date': '20170301',
             'timestamp': 1488353834,
@@ -131,7 +131,7 @@ class BiliBiliIE(InfoExtractor):
             'uploader': 'bili_31244483705',
             'comment_count': int,
             'description': '',
-            'tags': ['VLOG'],
+            'tags': list,
             'view_count': int,
             'like_count': int,
             'upload_date': '20220408',
@@ -449,7 +449,10 @@ class BilibiliBangumiMediaIE(InfoExtractor):
     _VALID_URL = r'https?://www\.bilibili\.com/bangumi/media/md(?P<id>\d+)'
     _TESTS = [{
         'url': 'https://www.bilibili.com/bangumi/media/md24097891',
-        'only_matching': True,
+        'info_dict': {
+            'id': '24097891',
+        },
+        'playlist_mincount': 25,
     }]
 
     def _real_extract(self, url):
@@ -753,7 +756,25 @@ class BiliBiliPlayerIE(InfoExtractor):
     _VALID_URL = r'https?://player\.bilibili\.com/player\.html\?.*?\baid=(?P<id>\d+)'
     _TEST = {
         'url': 'http://player.bilibili.com/player.html?aid=92494333&cid=157926707&page=1',
-        'only_matching': True,
+        'info_dict': {
+            'id': '1xE411H755',
+            'uploader': '骨头゛',
+            'tags': list,
+            'uploader_id': '165511',
+            'timestamp': 1583193626,
+            'title': '大学路上的绊脚石',
+            'upload_date': '20200303',
+            'view_count': int,
+            'like_count': int,
+            'comment_count': int,
+            'description': 'https://m.weibo.cn/2259906485/4476899461540619',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
+            'duration': 12.167,
+        },
+        'params': {
+            'skip_download': True,
+            'ignore_no_formats_error': True,
+        },
     }
 
     def _real_extract(self, url):
