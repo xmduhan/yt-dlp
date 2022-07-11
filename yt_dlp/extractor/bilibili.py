@@ -44,21 +44,18 @@ class BiliBiliIE(InfoExtractor):
 
     _TESTS = [{
         'url': 'http://www.bilibili.com/video/av1074402/',
-        'md5': '7ac275ec84a99a6552c5d229659a0fe1',
         'info_dict': {
-            'id': '1074402_part1',
-            'ext': 'mp4',
+            'id': '1074402',
             'title': '【金坷垃】金泡沫',
             'uploader_id': '156160',
             'uploader': '菊子桑',
-            'upload_date': '20140420',
-            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
-            'timestamp': 1398012678,
-            'tags': ['顶上去报复社会', '该来的总会来的', '金克拉是检验歌曲的唯一标准', '坷垃教主', '金坷垃', '邓紫棋', '治愈系坷垃'],
-            'bv_id': 'BV11x411K7CN',
-            'cid': '1554319',
             'thumbnail': 'http://i2.hdslb.com/bfs/archive/c79a8cf0347cd7a897c53a2f756e96aead128e8c.jpg',
             'duration': 308.36,
+            # 'bv_id': 'BV11x411K7CN',
+            # 'cid': '1554319',
+        },
+        'params': {
+            'skip_download': True,
         },
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ep508406',
@@ -70,34 +67,35 @@ class BiliBiliIE(InfoExtractor):
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ss897',
         'info_dict': {
+            'series': '神的记事本',
+            'season': '神的记事本',
+            'season_id': 897,
+            'season_number': 1,
+            'episode': '你与旅行包',
+            'episode_number': 2,
             'id': 'ss897',
-            'ext': 'mp4',
-            'title': '神的记事本：第2话 你与旅行包'
-        },
-    }, {
-        'url': 'http://www.bilibili.com/video/av8903802/',
-        'info_dict': {
-            'id': '8903802_part1',
-            'ext': 'mp4',
-            'title': '阿滴英文｜英文歌分享#6 "Closer',
-            'upload_date': '20170301',
-            'description': '滴妹今天唱Closer給你聽! 有史以来，被推最多次也是最久的歌曲，其实歌词跟我原本想像差蛮多的，不过还是好听！ 微博@阿滴英文',
-            'timestamp': 1488382634,
-            'uploader_id': '65880958',
-            'uploader': '阿滴英文',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/49267ce20bc246be6304bf369a3ded0256854c23.jpg',
-            'cid': '14694589',
-            'duration': 554.117,
-            'bv_id': 'BV13x41117TL',
-            'tags': ['人文', '英语', '文化', '公开课', '阿滴英文'],
+            'title': '神的记事本：第2话 你与旅行包',
+            'duration': 1428.487,
         },
         'params': {
             'skip_download': True,
         },
     }, {
-        # new BV video id format
-        'url': 'https://www.bilibili.com/video/BV1JE411F741',
-        'only_matching': True,
+        'url': 'http://www.bilibili.com/video/av8903802/',
+        'info_dict': {
+            'id': '8903802',
+            'title': '阿滴英文｜英文歌分享#6 "Closer',
+            'description': '滴妹今天唱Closer給你聽! 有史以来，被推最多次也是最久的歌曲，其实歌词跟我原本想像差蛮多的，不过还是好听！ 微博@阿滴英文',
+            'uploader_id': '65880958',
+            'uploader': '阿滴英文',
+            'thumbnail': 'http://i2.hdslb.com/bfs/archive/49267ce20bc246be6304bf369a3ded0256854c23.jpg',
+            'duration': 554.117,
+            # 'cid': '14694589',
+            # 'bv_id': 'BV13x41117TL',
+        },
+        'params': {
+            'skip_download': True,
+        },
     }, {
         # Anthology
         'url': 'https://www.bilibili.com/video/BV1bK411W797',
@@ -105,24 +103,18 @@ class BiliBiliIE(InfoExtractor):
             'id': 'BV1bK411W797',
             'title': '物语中的人物是如何吐槽自己的OP的'
         },
-        'playlist_count': 17,
+        'playlist_count': 18,
     }, {
         # Correct matching of single and double quotes in title
         'url': 'https://www.bilibili.com/video/BV1NY411E7Rx/',
         'info_dict': {
-            'id': '255513412_part1',
-            'ext': 'mp4',
+            'id': '1NY411E7Rx',
             'title': 'Vid"eo" Te\'st',
-            'cid': '570602418',
             'thumbnail': 'http://i2.hdslb.com/bfs/archive/0c0de5a90b6d5b991b8dcc6cde0afbf71d564791.jpg',
-            'upload_date': '20220408',
-            'timestamp': 1649436552,
-            'description': 'Vid"eo" Te\'st',
             'uploader_id': '1630758804',
-            'bv_id': 'BV1NY411E7Rx',
             'duration': 60.394,
             'uploader': 'bili_31244483705',
-            'tags': ['VLOG'],
+            # 'cid': '570602418',
         },
         'params': {
             'skip_download': True,
@@ -395,7 +387,7 @@ class BiliBiliIE(InfoExtractor):
                 'ext': 'xml',
                 'url': f'https://comment.bilibili.com/{cid}.xml',
             }]
-        return subtitles
+        return dict(subtitles)
 
     def _get_comments(self, aid, commentPageNumber=0):
         for idx in itertools.count(1):
