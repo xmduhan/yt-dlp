@@ -41,9 +41,11 @@ class BiliBiliIE(InfoExtractor):
                     '''
 
     _TESTS = [{
+        # old av URL version
         'url': 'http://www.bilibili.com/video/av1074402/',
         'info_dict': {
             'thumbnail': r're:^https?://.*\.(jpg|jpeg)$',
+            'ext': 'mp4',
             'uploader': '菊子桑',
             'uploader_id': '156160',
             'id': '1074402',
@@ -57,38 +59,12 @@ class BiliBiliIE(InfoExtractor):
             'view_count': int,
             'tags': list,
         },
-        'params': {
-            'skip_download': True,
-            'ignore_no_formats_error': True,
-        },
     }, {
-        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
-        'only_matching': True,
-    }, {
-        'url': 'https://www.bilibili.com/bangumi/play/ss897',
+        'url': 'https://www.bilibili.com/video/BV13x41117TL',
         'info_dict': {
-            'series': '神的记事本',
-            'season': '神的记事本',
-            'season_id': 897,
-            'season_number': 1,
-            'episode': '你与旅行包',
-            'episode_number': 2,
-            'id': 'ss897',
-            'title': '神的记事本：第2话 你与旅行包',
-            'duration': 1428.487,
-            'timestamp': 1310809380,
-            'upload_date': '20110716',
-            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
-        },
-        'params': {
-            'skip_download': True,
-            'ignore_no_formats_error': True,
-        },
-    }, {
-        'url': 'http://www.bilibili.com/video/av8903802/',
-        'info_dict': {
-            'id': '8903802',
+            'id': '13x41117TL',
             'title': '阿滴英文｜英文歌分享#6 "Closer',
+            'ext': 'mp4',
             'description': '滴妹今天唱Closer給你聽! 有史以来，被推最多次也是最久的歌曲，其实歌词跟我原本想像差蛮多的，不过还是好听！ 微博@阿滴英文',
             'uploader_id': '65880958',
             'uploader': '阿滴英文',
@@ -100,10 +76,6 @@ class BiliBiliIE(InfoExtractor):
             'timestamp': 1488353834,
             'like_count': int,
             'view_count': int,
-        },
-        'params': {
-            'skip_download': True,
-            'ignore_no_formats_error': True,
         },
     }, {
         # Anthology
@@ -138,6 +110,30 @@ class BiliBiliIE(InfoExtractor):
     }, {
         # old flv frags format example
         'url': 'https://www.bilibili.com/video/BV1Xx411P7Ks?p=1',
+        'info_dict': {
+            'id': '1Xx411P7Ks_p01-Frag01',
+            'ext': 'flv',
+            'title': 'infinite stratos 2季 声优见面会影像 p01 昼场-Frag01'
+        },
+    }, {
+        'url': 'https://www.bilibili.com/bangumi/play/ss897',
+        'info_dict': {
+            'id': 'ss897',
+            'ext': 'mp4',
+            'series': '神的记事本',
+            'season': '神的记事本',
+            'season_id': 897,
+            'season_number': 1,
+            'episode': '你与旅行包',
+            'episode_number': 2,
+            'title': '神的记事本：第2话 你与旅行包',
+            'duration': 1428.487,
+            'timestamp': 1310809380,
+            'upload_date': '20110716',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
+        },
+    }, {
+        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
         'only_matching': True,
     }]
 
