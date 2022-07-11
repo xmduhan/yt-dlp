@@ -190,6 +190,11 @@ class BiliBiliIE(InfoExtractor):
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
 
+        format_desc_dict = {
+            r['quality']: traverse_obj(r, 'new_description', 'display_desc')
+            for r in traverse_obj(play_info, 'support_formats', expected_type=list) or []
+        }
+
         info = {'formats': []}
         audios = traverse_obj(play_info, ('dash', 'audio')) or []
 
@@ -204,6 +209,8 @@ class BiliBiliIE(InfoExtractor):
                 'acodec': 'none' if audios else None,
                 'tbr': float_or_none(video.get('bandwidth'), scale=1000),
                 'filesize': int_or_none(video.get('size')),
+                'quality': video.get('id'),
+                'format_note': format_desc_dict.get(video.get('id')),
             })
 
         for audio in audios:
