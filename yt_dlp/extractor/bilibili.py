@@ -29,9 +29,7 @@ from ..utils import (
 
 class BiliBiliIE(InfoExtractor):
     _VALID_URL = r'''(?x)
-                    https?://
-                        www\.
-                        bilibili\.(?:tv|com)/
+                    https?://www\.bilibili\.com/
                         (?:
                             (?:
                                 video/[aA][vV]|
@@ -65,10 +63,6 @@ class BiliBiliIE(InfoExtractor):
         },
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ep508406',
-        'only_matching': True,
-    }, {
-        # bilibili.tv
-        'url': 'http://www.bilibili.tv/video/av1074402/',
         'only_matching': True,
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ss897',
