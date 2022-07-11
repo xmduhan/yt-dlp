@@ -45,17 +45,23 @@ class BiliBiliIE(InfoExtractor):
     _TESTS = [{
         'url': 'http://www.bilibili.com/video/av1074402/',
         'info_dict': {
+            'thumbnail': 're:^https?://.*\.(jpg|jpeg)$',
+            'uploader': '菊子桑',
+            'uploader_id': '156160',
             'id': '1074402',
             'title': '【金坷垃】金泡沫',
-            'uploader_id': '156160',
-            'uploader': '菊子桑',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/c79a8cf0347cd7a897c53a2f756e96aead128e8c.jpg',
             'duration': 308.36,
-            # 'bv_id': 'BV11x411K7CN',
-            # 'cid': '1554319',
+            'upload_date': '20140420',
+            'like_count': int,
+            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
+            'comment_count': int,
+            'timestamp': 1397983878,
+            'view_count': int,
+            'tags': ['金坷垃', '邓紫棋', '顶上去报复社会', '该来的总会来的', '金克拉是检验歌曲的唯一标准', '坷垃教主', '治愈系坷垃'],
         },
         'params': {
             'skip_download': True,
+            'ignore_no_formats_error': True,
         },
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ep508406',
@@ -454,7 +460,9 @@ class BilibiliChannelIE(InfoExtractor):
     _VALID_URL = r'https?://space.bilibili\.com/(?P<id>\d+)(:?/channel/collectiondetail\?sid=(?P<sid>\d+))?'
     _TESTS = [{
         'url': 'https://space.bilibili.com/3985676/video',
-        'info_dict': {},
+        'info_dict': {
+            'id': '3985676',
+        },
         'playlist_mincount': 112,
     }]
 
