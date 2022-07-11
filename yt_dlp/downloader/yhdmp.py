@@ -167,7 +167,6 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
                 if not progress_report_finished and m3u8_frag_urls is not None:
                     elapsed = (datetime.datetime.now() - progress_start_dt).seconds
                     progress_info = {
-                        'info_dict': {},
                         'status': 'downloading',
                         'filename': temp_output_fn_prefix,
                         'fragment_index': len(m3u8_frag_file_list),
@@ -176,7 +175,10 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
                         'downloaded_bytes': progress_bytes_counter,
                         'speed': (progress_bytes_counter - last_tick_bytes_counter) / 1.0,
                     }
-                    if len(m3u8_frag_file_list) == len(m3u8_frag_urls):
+                    if self.params.get('test', False) and len(m3u8_frag_file_list) >= 2:
+                        progress_info['status'] = 'finished'
+                        break
+                    elif len(m3u8_frag_file_list) == len(m3u8_frag_urls):
                         progress_info['status'] = 'finished'
                         progress_report_finished = True
                     elif len(m3u8_frag_file_list) >= 10:
@@ -185,7 +187,7 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
                             'total_bytes_estimate': total_bytes_estimate,
                             'eta': elapsed * (1.0 / progress_bytes_counter * total_bytes_estimate - 1.0)
                         })
-                    self.report_progress(progress_info)
+                    self._hook_progress(progress_info, {})
                 last_tick_bytes_counter = progress_bytes_counter
 
                 if stopped:
@@ -218,6 +220,12 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
             temp_output_fn = fmt_output_filename[:-len(Path(fmt_output_filename).suffix)]
 
             frag_file_list = self.type1_download_frags(url, temp_output_fn)
+
+            if self.params.get('test', False):
+                self._hook_progress({
+                    'filename': filename,
+                    'status': 'finished'
+                }, {})
 
             if not (ffmpeg_tester.available and ffmpeg_tester.probe_available):
                 raise PostProcessingError('ffmpeg or ffprobe is missing, cannot merge frags.')

@@ -17,14 +17,12 @@ class YhdmpIE(InfoExtractor):
             'ext': 'mp4',
             'title': '异世界舅舅 第1集',
         },
-        'params': {
-            'skip_download': True,
-        },
     }, {
         'url': 'https://www.yhdmp.cc/vp/22096-1-9.html',
         'info_dict': {
             'id': '22096-1-9',
             'ext': 'mp4',
+            'title': '爱书的下克上～为了成为图书管理员不择手段～ 第三季 第36集',
         },
     }]
 
