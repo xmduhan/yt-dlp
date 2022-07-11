@@ -82,9 +82,13 @@ class BiliBiliIE(InfoExtractor):
             'id': 'ss897',
             'title': '神的记事本：第2话 你与旅行包',
             'duration': 1428.487,
+            'timestamp': 1310809380,
+            'upload_date': '20110716',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
         },
         'params': {
             'skip_download': True,
+            'ignore_no_formats_error': True,
         },
     }, {
         'url': 'http://www.bilibili.com/video/av8903802/',
@@ -94,13 +98,18 @@ class BiliBiliIE(InfoExtractor):
             'description': '滴妹今天唱Closer給你聽! 有史以来，被推最多次也是最久的歌曲，其实歌词跟我原本想像差蛮多的，不过还是好听！ 微博@阿滴英文',
             'uploader_id': '65880958',
             'uploader': '阿滴英文',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/49267ce20bc246be6304bf369a3ded0256854c23.jpg',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
             'duration': 554.117,
-            # 'cid': '14694589',
-            # 'bv_id': 'BV13x41117TL',
+            'tags': ['英语', '公开课', '人文', '文化', '阿滴英文'],
+            'comment_count': int,
+            'upload_date': '20170301',
+            'timestamp': 1488353834,
+            'like_count': int,
+            'view_count': int,
         },
         'params': {
             'skip_download': True,
+            'ignore_no_formats_error': True,
         },
     }, {
         # Anthology
@@ -116,14 +125,21 @@ class BiliBiliIE(InfoExtractor):
         'info_dict': {
             'id': '1NY411E7Rx',
             'title': 'Vid"eo" Te\'st',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/0c0de5a90b6d5b991b8dcc6cde0afbf71d564791.jpg',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
             'uploader_id': '1630758804',
             'duration': 60.394,
             'uploader': 'bili_31244483705',
-            # 'cid': '570602418',
+            'comment_count': int,
+            'description': '',
+            'tags': ['VLOG'],
+            'view_count': int,
+            'like_count': int,
+            'upload_date': '20220408',
+            'timestamp': 1649407752,
         },
         'params': {
             'skip_download': True,
+            'ignore_no_formats_error': True,
         },
     }, {
         # old flv frags format example
