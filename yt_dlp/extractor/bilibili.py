@@ -29,9 +29,7 @@ from ..utils import (
 
 class BiliBiliIE(InfoExtractor):
     _VALID_URL = r'''(?x)
-                    https?://
-                        www\.
-                        bilibili\.(?:tv|com)/
+                    https?://www\.bilibili\.com/
                         (?:
                             (?:
                                 video/[aA][vV]|
@@ -43,58 +41,41 @@ class BiliBiliIE(InfoExtractor):
                     '''
 
     _TESTS = [{
+        # old av URL version
         'url': 'http://www.bilibili.com/video/av1074402/',
         'info_dict': {
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg)$',
+            'ext': 'mp4',
+            'uploader': '菊子桑',
+            'uploader_id': '156160',
             'id': '1074402',
             'title': '【金坷垃】金泡沫',
-            'uploader_id': '156160',
-            'uploader': '菊子桑',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/c79a8cf0347cd7a897c53a2f756e96aead128e8c.jpg',
             'duration': 308.36,
-            # 'bv_id': 'BV11x411K7CN',
-            # 'cid': '1554319',
+            'upload_date': '20140420',
+            'timestamp': 1397983878,
+            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
+            'like_count': int,
+            'comment_count': int,
+            'view_count': int,
+            'tags': list,
         },
-        'params': {
-            'skip_download': True,
-        },
     }, {
-        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
-        'only_matching': True,
-    }, {
-        # bilibili.tv
-        'url': 'http://www.bilibili.tv/video/av1074402/',
-        'only_matching': True,
-    }, {
-        'url': 'https://www.bilibili.com/bangumi/play/ss897',
+        'url': 'https://www.bilibili.com/video/BV13x41117TL',
         'info_dict': {
-            'series': '神的记事本',
-            'season': '神的记事本',
-            'season_id': 897,
-            'season_number': 1,
-            'episode': '你与旅行包',
-            'episode_number': 2,
-            'id': 'ss897',
-            'title': '神的记事本：第2话 你与旅行包',
-            'duration': 1428.487,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }, {
-        'url': 'http://www.bilibili.com/video/av8903802/',
-        'info_dict': {
-            'id': '8903802',
+            'id': '13x41117TL',
             'title': '阿滴英文｜英文歌分享#6 "Closer',
+            'ext': 'mp4',
             'description': '滴妹今天唱Closer給你聽! 有史以来，被推最多次也是最久的歌曲，其实歌词跟我原本想像差蛮多的，不过还是好听！ 微博@阿滴英文',
             'uploader_id': '65880958',
             'uploader': '阿滴英文',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/49267ce20bc246be6304bf369a3ded0256854c23.jpg',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
             'duration': 554.117,
-            # 'cid': '14694589',
-            # 'bv_id': 'BV13x41117TL',
-        },
-        'params': {
-            'skip_download': True,
+            'tags': list,
+            'comment_count': int,
+            'upload_date': '20170301',
+            'timestamp': 1488353834,
+            'like_count': int,
+            'view_count': int,
         },
     }, {
         # Anthology
@@ -110,18 +91,49 @@ class BiliBiliIE(InfoExtractor):
         'info_dict': {
             'id': '1NY411E7Rx',
             'title': 'Vid"eo" Te\'st',
-            'thumbnail': 'http://i2.hdslb.com/bfs/archive/0c0de5a90b6d5b991b8dcc6cde0afbf71d564791.jpg',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
             'uploader_id': '1630758804',
             'duration': 60.394,
             'uploader': 'bili_31244483705',
-            # 'cid': '570602418',
+            'comment_count': int,
+            'description': '',
+            'tags': list,
+            'view_count': int,
+            'like_count': int,
+            'upload_date': '20220408',
+            'timestamp': 1649407752,
         },
         'params': {
             'skip_download': True,
+            'ignore_no_formats_error': True,
         },
     }, {
         # old flv frags format example
         'url': 'https://www.bilibili.com/video/BV1Xx411P7Ks?p=1',
+        'info_dict': {
+            'id': '1Xx411P7Ks_p01-Frag01',
+            'ext': 'flv',
+            'title': 'infinite stratos 2季 声优见面会影像 p01 昼场-Frag01'
+        },
+    }, {
+        'url': 'https://www.bilibili.com/bangumi/play/ss897',
+        'info_dict': {
+            'id': 'ss897',
+            'ext': 'mp4',
+            'series': '神的记事本',
+            'season': '神的记事本',
+            'season_id': 897,
+            'season_number': 1,
+            'episode': '你与旅行包',
+            'episode_number': 2,
+            'title': '神的记事本：第2话 你与旅行包',
+            'duration': 1428.487,
+            'timestamp': 1310809380,
+            'upload_date': '20110716',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
+        },
+    }, {
+        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
         'only_matching': True,
     }]
 
@@ -190,6 +202,12 @@ class BiliBiliIE(InfoExtractor):
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
 
+        format_desc_dict = {
+            r['quality']: traverse_obj(r, 'new_description', 'display_desc')
+            for r in traverse_obj(play_info, 'support_formats', expected_type=list) or []
+            if 'quality' in r
+        }
+
         info = {'formats': []}
         audios = traverse_obj(play_info, ('dash', 'audio')) or []
 
@@ -204,6 +222,8 @@ class BiliBiliIE(InfoExtractor):
                 'acodec': 'none' if audios else None,
                 'tbr': float_or_none(video.get('bandwidth'), scale=1000),
                 'filesize': int_or_none(video.get('size')),
+                'quality': video.get('id'),
+                'format_note': format_desc_dict.get(video.get('id')),
             })
 
         for audio in audios:
@@ -324,6 +344,7 @@ class BiliBiliIE(InfoExtractor):
                 'url': slices[0]['url'],
                 'ext': ext,
                 'quality': f['quality'],
+                'format_note': traverse_obj(f, 'new_description', 'display_desc'),
                 'height': int_or_none(f['display_desc'].rstrip('P')),
                 'vcodec': f.get('codecs'),
                 'entries': slices,
@@ -418,7 +439,10 @@ class BilibiliBangumiMediaIE(InfoExtractor):
     _VALID_URL = r'https?://www\.bilibili\.com/bangumi/media/md(?P<id>\d+)'
     _TESTS = [{
         'url': 'https://www.bilibili.com/bangumi/media/md24097891',
-        'only_matching': True,
+        'info_dict': {
+            'id': '24097891',
+        },
+        'playlist_mincount': 25,
     }]
 
     def _real_extract(self, url):
@@ -445,7 +469,9 @@ class BilibiliChannelIE(InfoExtractor):
     _VALID_URL = r'https?://space.bilibili\.com/(?P<id>\d+)(:?/channel/collectiondetail\?sid=(?P<sid>\d+))?'
     _TESTS = [{
         'url': 'https://space.bilibili.com/3985676/video',
-        'info_dict': {},
+        'info_dict': {
+            'id': '3985676',
+        },
         'playlist_mincount': 112,
     }]
 
@@ -720,7 +746,25 @@ class BiliBiliPlayerIE(InfoExtractor):
     _VALID_URL = r'https?://player\.bilibili\.com/player\.html\?.*?\baid=(?P<id>\d+)'
     _TEST = {
         'url': 'http://player.bilibili.com/player.html?aid=92494333&cid=157926707&page=1',
-        'only_matching': True,
+        'info_dict': {
+            'id': '1xE411H755',
+            'uploader': '骨头゛',
+            'tags': list,
+            'uploader_id': '165511',
+            'timestamp': 1583193626,
+            'title': '大学路上的绊脚石',
+            'upload_date': '20200303',
+            'view_count': int,
+            'like_count': int,
+            'comment_count': int,
+            'description': 'https://m.weibo.cn/2259906485/4476899461540619',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
+            'duration': 12.167,
+        },
+        'params': {
+            'skip_download': True,
+            'ignore_no_formats_error': True,
+        },
     }
 
     def _real_extract(self, url):
