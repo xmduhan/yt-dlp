@@ -45,29 +45,39 @@ class AcFunVideoIE(AcFunVideoBaseIE):
         'url': 'https://www.acfun.cn/v/ac35457073',
         'info_dict': {
             'id': '35457073',
+            'ext': 'mp4',
+            'duration': 174.208,
+            'timestamp': 1656403967,
             'title': '1 8 岁 现 状',
             'description': '“赶紧回去！班主任查班了！”',
             'uploader': '锤子game',
             'uploader_id': '51246077',
-            'duration': 174.208,
-            'timestamp': 1656403967
-        },
-        'params': {
-            'skip_download': 'm3u8',
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg)',
+            'upload_date': '20220628',
+            'like_count': int,
+            'view_count': int,
+            'comment_count': int,
+            'tags': list,
         },
     }, {
         # example for len(video_list) > 1
         'url': 'https://www.acfun.cn/v/ac35468952_2',
         'info_dict': {
             'id': '35468952_2',
-            'duration': 90.459,
+            'ext': 'mp4',
             'title': '【动画剧集】Rocket & Groot Season 1（2022）/火箭浣熊与格鲁特第1季 P02 S01E02 十拿九穩',
+            'duration': 90.459,
             'uploader': '比令',
-            'uploader_id': '37259967'
-        },
-        'params': {
-            'skip_download': 'm3u8',
-        },
+            'uploader_id': '37259967',
+            'upload_date': '20220629',
+            'timestamp': 1656479962,
+            'tags': list,
+            'like_count': int,
+            'view_count': int,
+            'comment_count': int,
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg)',
+            'description': 'md5:67583aaf3a0f933bd606bc8a2d3ebb17',
+        }
     }]
 
     def _real_extract(self, url):
@@ -103,52 +113,49 @@ class AcFunBangumiIE(AcFunVideoBaseIE):
     _VALID_URL = r'https?://www\.acfun\.cn/bangumi/(?P<id>aa[_\d]+)'
 
     _TESTS = [{
-        'url': 'https://www.acfun.cn/bangumi/aa6002917',
-        'info_dict': {
-            'id': 'aa6002917',
-            'title': '租借女友 第1话 租借女友',
-            'duration': 1467,
-            'timestamp': 1594432800,
-        },
-        'params': {
-            'skip_download': 'm3u8',
-        },
-        'skip': 'Geo-restricted to China',
-    }, {
         'url': 'https://www.acfun.cn/bangumi/aa6002917_36188_1745457?ac=2',
-        'only_matching': True,
+        'info_dict': {
+            'id': 'aa6002917_36188_1745457__2',
+            'ext': 'mp4',
+            'title': '【7月】租借女友 水原千鹤角色曲『DATE』特别PV',
+            'upload_date': '20200916',
+            'timestamp': 1600243813,
+            'duration': 92.091,
+        },
     }, {
         'url': 'https://www.acfun.cn/bangumi/aa5023171_36188_1750645',
         'info_dict': {
             'id': 'aa5023171_36188_1750645',
-            'duration': 760.0,
-            'timestamp': 1545552185,
+            'ext': 'mp4',
             'title': '红孩儿之趴趴蛙寻石记 第5话 ',
+            'duration': 760.0,
             'season': '红孩儿之趴趴蛙寻石记',
             'season_id': 5023171,
             'season_number': 1,  # series has only 1 season
-            'episode': '',
-            'episode_number': 5
-        },
-        'params': {
-            'skip_download': 'm3u8',
+            'episode': 'Episode 5',
+            'episode_number': 5,
+            'upload_date': '20181223',
+            'timestamp': 1545552185,
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)',
+            'comment_count': int,
         },
     }, {
-        'url': 'https://www.acfun.cn/bangumi/aa6004596_36188_1759741',
+        'url': 'https://www.acfun.cn/bangumi/aa6065485_36188_1885061',
         'info_dict': {
-            'id': 'aa6004596_36188_1759741',
-            'duration': 1420.04,
-            'title': '摇曳露营△ 第二季 第2话 岁末的单人露营女孩',
-            'season': '摇曳露营△ 第二季',
-            'season_id': 6004596,
+            'id': 'aa6065485_36188_1885061',
+            'ext': 'mp4',
+            'title': '叽歪老表（第二季） 第5话 坚不可摧',
+            'season': '叽歪老表（第二季）',
             'season_number': 2,
-            'episode': '岁末的单人露营女孩',
-            'episode_number': 2
+            'season_id': 6065485,
+            'episode': '坚不可摧',
+            'episode_number': 5,
+            'upload_date': '20220324',
+            'timestamp': 1648082786,
+            'duration': 105.002,
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)',
+            'comment_count': int,
         },
-        'params': {
-            'skip_download': 'm3u8',
-        },
-        'skip': 'Geo-restricted to China',
     }]
 
     def _real_extract(self, url):
