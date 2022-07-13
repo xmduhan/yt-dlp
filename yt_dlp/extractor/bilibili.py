@@ -274,6 +274,12 @@ class BiliBiliIE(InfoExtractor):
                 'format_note': format_desc_dict.get(video.get('id')),
             })
 
+        found_formats = {f['quality'] for f in info['formats']}
+        missing_format = {qn: desc for qn, desc in format_desc_dict.items() if qn not in found_formats}
+
+        if len(missing_format) > 0 and traverse_obj(missing_format, 112, 120) is not None:
+            self.to_screen(f'Format [{", ".join(missing_format.values())}] is missing, you have to login or become premium member to download.')
+
         for audio in audios:
             info['formats'].append({
                 'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
