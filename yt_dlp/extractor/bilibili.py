@@ -186,14 +186,6 @@ class BiliBiliIE(InfoExtractor):
         'only_matching': True,
     }]
 
-    def json2srt(self, json_data):
-        srt_data = ''
-        for idx, line in enumerate(json_data.get('body', [])):
-            srt_data += f'{idx + 1}\n'
-            srt_data += f'{srt_subtitles_timecode(line["from"])} --> {srt_subtitles_timecode(line["to"])}\n'
-            srt_data += f'{line["content"]}\n\n'
-        return srt_data
-
     def _real_extract(self, url):
         mobj = self._match_valid_url(url)
         video_id = mobj.group('id_bv') or mobj.group('id')
@@ -253,54 +245,13 @@ class BiliBiliIE(InfoExtractor):
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
 
-        format_desc_dict = {
-            r['quality']: traverse_obj(r, 'new_description', 'display_desc')
-            for r in traverse_obj(play_info, 'support_formats', expected_type=list) or []
-            if 'quality' in r
-        }
-
-        info = {'formats': []}
-        audios = traverse_obj(play_info, ('dash', 'audio')) or []
-
-        for idx, video in enumerate(traverse_obj(play_info, ('dash', 'video')) or []):
-            info['formats'].append({
-                'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
-                'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
-                'fps': self.fix_fps(video.get('frameRate') or video.get('frame_rate')),
-                'width': int_or_none(video.get('width')),
-                'height': int_or_none(video.get('height')),
-                'vcodec': video.get('codecs'),
-                'acodec': 'none' if audios else None,
-                'tbr': float_or_none(video.get('bandwidth'), scale=1000),
-                'filesize': int_or_none(video.get('size')),
-                'quality': video.get('id'),
-                'format_note': format_desc_dict.get(video.get('id')),
-            })
-
-        found_formats = {f['quality'] for f in info['formats']}
-        missing_format = {qn: desc for qn, desc in format_desc_dict.items() if qn not in found_formats}
-
-        if len(missing_format) > 0 and traverse_obj(missing_format, 112, 120) is not None:
-            self.to_screen(f'Format [{", ".join(missing_format.values())}] is missing, you have to login or become premium member to download.')
-
-        for audio in audios:
-            info['formats'].append({
-                'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
-                'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
-                'acodec': audio.get('codecs'),
-                'vcodec': 'none',
-                'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
-                'filesize': int_or_none(audio.get('size'))
-            })
-
-        self._sort_formats(info['formats'])
-
+        info = self.extract_formats(play_info)
         if not info['formats']:
             if '成为大会员抢先看' in webpage and 'dash' not in play_info and 'durl' in play_info:
                 raise ExtractorError(f'VIP is required for {url}', expected=True)
             elif 'dash' not in play_info:
                 # old video
-                info = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
+                info = self.parse_old_flv_formats(video_id, bv_id, cid,
                                                   play_info['support_formats'] or [], id_str,
                                                   title, http_headers)
             else:
@@ -351,6 +302,50 @@ class BiliBiliIE(InfoExtractor):
             'http_headers': http_headers,
             '__post_extractor': self.extract_comments(aid),
         }
+
+    def extract_formats(self, play_info):
+        format_desc_dict = {
+            r['quality']: traverse_obj(r, 'new_description', 'display_desc')
+            for r in traverse_obj(play_info, 'support_formats', expected_type=list) or []
+            if 'quality' in r
+        }
+
+        info = {'formats': []}
+
+        audios = traverse_obj(play_info, ('dash', 'audio')) or []
+
+        for video in traverse_obj(play_info, ('dash', 'video')) or []:
+            info['formats'].append({
+                'url': video.get('baseUrl') or video.get('base_url') or video.get('url'),
+                'ext': mimetype2ext(video.get('mimeType') or video.get('mime_type')),
+                'fps': self.fix_fps(video.get('frameRate') or video.get('frame_rate')),
+                'width': int_or_none(video.get('width')),
+                'height': int_or_none(video.get('height')),
+                'vcodec': video.get('codecs'),
+                'acodec': 'none' if audios else None,
+                'tbr': float_or_none(video.get('bandwidth'), scale=1000),
+                'filesize': int_or_none(video.get('size')),
+                'quality': video.get('id'),
+                'format_note': format_desc_dict.get(video.get('id')),
+            })
+
+        found_formats = {f['quality'] for f in info['formats']}
+        missing_format = {qn: desc for qn, desc in format_desc_dict.items() if qn not in found_formats}
+        if len(missing_format) > 0 and traverse_obj(missing_format, 112, 120) is not None:
+            self.to_screen(f'Format [{", ".join(missing_format.values())}] is missing, you have to login or become premium member to download.')
+
+        for audio in audios:
+            info['formats'].append({
+                'url': audio.get('baseUrl') or audio.get('base_url') or audio.get('url'),
+                'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
+                'acodec': audio.get('codecs'),
+                'vcodec': 'none',
+                'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
+                'filesize': int_or_none(audio.get('size'))
+            })
+
+        self._sort_formats(info['formats'])
+        return info
 
     def fix_fps(self, s):
         if s is None:
@@ -451,6 +446,14 @@ class BiliBiliIE(InfoExtractor):
                 'entries': entries
             }
         return info_fmt
+
+    def json2srt(self, json_data):
+        srt_data = ''
+        for idx, line in enumerate(json_data.get('body', [])):
+            srt_data += f'{idx + 1}\n'
+            srt_data += f'{srt_subtitles_timecode(line["from"])} --> {srt_subtitles_timecode(line["to"])}\n'
+            srt_data += f'{line["content"]}\n\n'
+        return srt_data
 
     def _get_subtitles(self, video_id, initial_state, cid, is_bangumi):
         subtitles = collections.defaultdict(list)
