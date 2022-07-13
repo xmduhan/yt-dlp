@@ -31,6 +31,8 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
 
         chrome_options = Options()
         chrome_options.add_argument('--log-level=3')
+        chrome_options.add_argument("--disable-blink-features")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
 
         if self.headless:
             chrome_options.add_argument('--headless')

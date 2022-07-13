@@ -43,6 +43,8 @@ class YhdmpIE(InfoExtractor):
 
         chrome_options = Options()
         chrome_options.add_argument('--log-level=3')
+        chrome_options.add_argument("--disable-blink-features")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
 
         if headless:
             chrome_options.add_argument('--headless')
