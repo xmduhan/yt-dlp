@@ -520,19 +520,16 @@ class BilibiliBangumiMediaIE(InfoExtractor):
 
         webpage = self._download_webpage(url, media_id)
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, 'initial_state', media_id)
-
-        season_id = traverse_obj(initial_state, ('mediaInfo', 'season_id'))
-
         episode_list = traverse_obj(
-            self._download_json(
-                f'https://api.bilibili.com/pgc/web/season/section?season_id={season_id}',
-                media_id, note='Downloading season info'
-            ).get('result', {}),
+            self._download_json('https://api.bilibili.com/pgc/web/season/section', media_id,
+                                note='Downloading season info',
+                                query={'season_id': initial_state['mediaInfo']['season_id']}
+                                ).get('result', {}),
             ('main_section', 'episodes')) or []
 
-        return self.playlist_result(
-            [self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid']) for entry in episode_list],
-            media_id)
+        return self.playlist_result([self.url_result(entry['share_url'], BiliBiliIE.ie_key(), entry['aid'])
+                                     for entry in episode_list],
+                                    media_id)
 
 
 class BilibiliSpaceBaseIE(InfoExtractor):
