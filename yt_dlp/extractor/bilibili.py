@@ -372,7 +372,6 @@ class BilibiliIE(BilibiliBaseIE):
                 note='Extracting videos in anthology'),
             'data', expected_type=list) or []
         has_multi_p = len(page_list_json or []) > 1
-
         page_id = int_or_none(mobj.group('page'))
 
         title = video_data.get('title')
@@ -396,7 +395,6 @@ class BilibiliIE(BilibiliBaseIE):
         id_str = f'{video_id}{format_field(page_id, template= f"_p%02d", default="")}'
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
-
         info = self.extract_formats(play_info)
         if not info['formats']:
             if 'dash' not in play_info:
@@ -409,8 +407,10 @@ class BilibiliIE(BilibiliBaseIE):
 
         aid = video_data.get('aid')
 
-        info.update({
-            # description in meta has many other infos about related videos
+        return {
+            **info,
+            'id': id_str,
+            'title': title,
             'description': traverse_obj(initial_state, ('videoData', 'desc')),
             'timestamp': traverse_obj(initial_state, ('videoData', 'pubdate')),
             'thumbnail': traverse_obj(initial_state, ('videoData', 'pic')),
@@ -420,13 +420,7 @@ class BilibiliIE(BilibiliBaseIE):
             'uploader': traverse_obj(initial_state, ('upData', 'name')),
             'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
             'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
-            'chapters': self._get_chapters(aid, cid)
-        })
-
-        return {
-            **info,
-            'id': id_str,
-            'title': title,
+            'chapters': self._get_chapters(aid, cid),
             'http_headers': {'Referer': url},
             **self.extract_common_info(video_id, aid, cid, initial_state, play_info)
         }
@@ -459,25 +453,17 @@ class BilibiliBangumiIE(BilibiliBaseIE):
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
-
         webpage = self._download_webpage(url, video_id)
 
         if '开通大会员观看' in webpage and '__playinfo__' not in webpage:
             raise ExtractorError(f'VIP is required for {url}', expected=True)
 
         initial_state = self._search_json(r'window.__INITIAL_STATE__\s*=\s*', webpage, 'initial state', video_id)
-
-        video_data = traverse_obj(initial_state, 'epInfo') or {}
         title = initial_state.get('h1Title')
 
-        http_headers = {
-            'Referer': url,
-            **self.geo_verification_headers()
-        }
-
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
-
         info = self.extract_formats(play_info)
+
         if not info['formats']:
             if '成为大会员抢先看' in webpage and 'dash' not in play_info and 'durl' in play_info:
                 raise ExtractorError(f'VIP is required for {url}', expected=True)
@@ -492,25 +478,26 @@ class BilibiliBangumiIE(BilibiliBaseIE):
             if e.get('season_id') == season_id
         ), None)
 
-        # There is no description for episode, only has description for season
-        info.update({
+        aid = traverse_obj(initial_state, ('epInfo', 'aid'))
+        cid = traverse_obj(initial_state, ('epInfo', 'cid'))
+
+        return {
+            **info,
+            'id': video_id,
+            'title': title,
             'timestamp': traverse_obj(initial_state, ('epInfo', 'pub_time')),
             'thumbnail': traverse_obj(initial_state, ('epInfo', 'cover')),
-
             'series': traverse_obj(initial_state, ('mediaInfo', 'series')),
             'season': traverse_obj(initial_state, ('mediaInfo', 'season_title')),
             'season_id': season_id,
             'season_number': season_number,
             'episode': traverse_obj(initial_state, ('epInfo', 'long_title')),
             'episode_number': int_or_none(traverse_obj(initial_state, ('epInfo', 'title'))),
-        })
-
-        return {
-            **info,
-            'id': video_id,
-            'title': title,
-            'http_headers': http_headers,
-            **self.extract_common_info(video_id, video_data.get('aid'), video_data.get('cid'), initial_state, play_info)
+            'http_headers': {
+                'Referer': url,
+                **self.geo_verification_headers()
+            },
+            **self.extract_common_info(video_id, aid, cid, initial_state, play_info)
         }
 
 
