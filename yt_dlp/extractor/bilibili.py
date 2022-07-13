@@ -213,12 +213,10 @@ class BiliBiliIE(InfoExtractor):
 
         page_id = int_or_none(mobj.group('page'))
 
-        title = self._html_search_regex((
-            r'<h1[^>]+title=(["])(?P<content>[^"]+)',
-            r'<h1[^>]+title=([\'])(?P<content>[^\']+)',
-            r'(?s)<h1[^>]*>(?P<content>.+?)</h1>',
-            self._meta_regex('title')
-        ), webpage, 'title', group='content', fatal=False)
+        if is_bangumi:
+            title = initial_state.get('h1Title')
+        else:
+            title = video_data.get('title')
 
         if not is_bangumi and has_multi_p and page_id is None:
             # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
