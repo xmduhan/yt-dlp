@@ -415,7 +415,7 @@ class BiliBiliIE(InfoExtractor):
 
     def _get_subtitles(self, video_id, initial_state, cid, is_bangumi):
         subtitles = collections.defaultdict(list)
-        if not is_bangumi and self.get_param('writesubtitles', False):
+        if not is_bangumi:
             subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
 
             for s in subtitle_info.get('list', []):
