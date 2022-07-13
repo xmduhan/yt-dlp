@@ -208,6 +208,8 @@ class BiliBiliIE(InfoExtractor):
         is_bangumi = mobj.group('bangumi') is not None
         video_data = traverse_obj(initial_state, 'epInfo', 'videoData') or {}
         bv_id = video_data['bvid']
+        aid = video_data.get('aid')
+        cid = video_data.get('cid')
 
         page_list_json = traverse_obj(
             self._download_json(
@@ -337,7 +339,7 @@ class BiliBiliIE(InfoExtractor):
                 'uploader': traverse_obj(initial_state, ('upData', 'name')),
                 'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
                 'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
-                'chapters': self._get_chapters(video_data.get('aid'), video_data.get('cid'))
+                'chapters': self._get_chapters(aid, cid)
             })
 
         return {
@@ -345,9 +347,9 @@ class BiliBiliIE(InfoExtractor):
             'id': id_str,
             'title': title,
             'duration': float_or_none(play_info.get('timelength'), scale=1000),
-            'subtitles': self.extract_subtitles(video_id, initial_state, video_data.get("cid"), is_bangumi),
+            'subtitles': self.extract_subtitles(video_id, initial_state, cid, is_bangumi),
             'http_headers': http_headers,
-            '__post_extractor': self.extract_comments(video_data.get('aid')),
+            '__post_extractor': self.extract_comments(aid),
         }
 
     def fix_fps(self, s):
