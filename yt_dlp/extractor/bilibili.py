@@ -135,6 +135,26 @@ class BiliBiliIE(InfoExtractor):
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ep508406',
         'only_matching': True,
+    }, {
+        # video has chapter
+        'url': 'https://www.bilibili.com/video/BV1vL411G7N7/',
+        'info_dict': {
+            'id': '1vL411G7N7',
+            'ext': 'mp4',
+            'title': '如何为你的B站视频添加进度条分段',
+            'timestamp': 1634554558,
+            'upload_date': '20211018',
+            'description': 'md5:a9a3d6702b3a94518d419b2e9c320a6d',
+            'tags': list,
+            'uploader': '爱喝咖啡的当麻',
+            'duration': 669.482,
+            'uploader_id': '1680903',
+            'chapters': 'count:6',
+            'comment_count': int,
+            'view_count': int,
+            'like_count': int,
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
+        },
     }]
 
     def json2srt(self, json_data):
@@ -280,6 +300,7 @@ class BiliBiliIE(InfoExtractor):
                 'uploader': traverse_obj(initial_state, ('upData', 'name')),
                 'uploader_id': traverse_obj(initial_state, ('upData', 'mid')),
                 'tags': [t['tag_name'] for t in initial_state.get('tags', []) if 'tag_name' in t],
+                'chapters': self._get_chapters(video_data.get('aid'), video_data.get('cid'))
             })
 
         return {
@@ -394,7 +415,7 @@ class BiliBiliIE(InfoExtractor):
 
     def _get_subtitles(self, video_id, initial_state, cid, is_bangumi):
         subtitles = collections.defaultdict(list)
-        if not is_bangumi and self.get_param('writesubtitles', False):
+        if not is_bangumi:
             subtitle_info = traverse_obj(initial_state, ('videoData', 'subtitle')) or {}
 
             for s in subtitle_info.get('list', []):
@@ -421,6 +442,18 @@ class BiliBiliIE(InfoExtractor):
                 return
             for children in map(self._get_all_children, replies):
                 yield from children
+
+    def _get_chapters(self, aid, cid):
+        if not aid or not cid:
+            return None
+        parsed_json = self._download_json('https://api.bilibili.com/x/player/v2', aid,
+                                          query={'aid': aid, 'cid': cid},
+                                          note='Extracting chapters', fatal=False) or {}
+
+        chapters = [{'title': c.get('content'), 'start_time': c.get('from'), 'end_time': c.get('to')}
+                    for c in traverse_obj(parsed_json, ('data', 'view_points'))]
+        if chapters:
+            return chapters
 
     def _get_all_children(self, reply):
         yield {
