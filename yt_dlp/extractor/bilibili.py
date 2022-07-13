@@ -41,25 +41,6 @@ class BiliBiliIE(InfoExtractor):
                     '''
 
     _TESTS = [{
-        # old av URL version
-        'url': 'http://www.bilibili.com/video/av1074402/',
-        'info_dict': {
-            'thumbnail': r're:^https?://.*\.(jpg|jpeg)$',
-            'ext': 'mp4',
-            'uploader': '菊子桑',
-            'uploader_id': '156160',
-            'id': '1074402',
-            'title': '【金坷垃】金泡沫',
-            'duration': 308.36,
-            'upload_date': '20140420',
-            'timestamp': 1397983878,
-            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
-            'like_count': int,
-            'comment_count': int,
-            'view_count': int,
-            'tags': list,
-        },
-    }, {
         'url': 'https://www.bilibili.com/video/BV13x41117TL',
         'info_dict': {
             'id': '13x41117TL',
@@ -78,6 +59,28 @@ class BiliBiliIE(InfoExtractor):
             'view_count': int,
         },
     }, {
+        # old av URL version
+        'url': 'http://www.bilibili.com/video/av1074402/',
+        'info_dict': {
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg)$',
+            'ext': 'mp4',
+            'uploader': '菊子桑',
+            'uploader_id': '156160',
+            'id': '1074402',
+            'title': '【金坷垃】金泡沫',
+            'duration': 308.36,
+            'upload_date': '20140420',
+            'timestamp': 1397983878,
+            'description': 'md5:ce18c2a2d2193f0df2917d270f2e5923',
+            'like_count': int,
+            'comment_count': int,
+            'view_count': int,
+            'tags': list,
+        },
+        'params': {
+            'skip_download': True,
+        },
+    }, {
         # Anthology
         'url': 'https://www.bilibili.com/video/BV1bK411W797',
         'info_dict': {
@@ -90,6 +93,7 @@ class BiliBiliIE(InfoExtractor):
         'url': 'https://www.bilibili.com/video/BV1NY411E7Rx/',
         'info_dict': {
             'id': '1NY411E7Rx',
+            'ext': 'mp4',
             'title': 'Vid"eo" Te\'st',
             'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
             'uploader_id': '1630758804',
@@ -105,15 +109,6 @@ class BiliBiliIE(InfoExtractor):
         },
         'params': {
             'skip_download': True,
-            'ignore_no_formats_error': True,
-        },
-    }, {
-        # old flv frags format example
-        'url': 'https://www.bilibili.com/video/BV1Xx411P7Ks?p=1',
-        'info_dict': {
-            'id': '1Xx411P7Ks_p01-Frag01',
-            'ext': 'flv',
-            'title': 'infinite stratos 2季 声优见面会影像 p01 昼场-Frag01'
         },
     }, {
         'url': 'https://www.bilibili.com/bangumi/play/ss897',
@@ -132,9 +127,6 @@ class BiliBiliIE(InfoExtractor):
             'upload_date': '20110716',
             'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
         },
-    }, {
-        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
-        'only_matching': True,
     }, {
         # video has chapter
         'url': 'https://www.bilibili.com/video/BV1vL411G7N7/',
@@ -155,6 +147,42 @@ class BiliBiliIE(InfoExtractor):
             'like_count': int,
             'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
         },
+        'params': {
+            'skip_download': True,
+        },
+    }, {
+        # video has subtitles
+        'url': 'https://www.bilibili.com/video/BV12N4y1M7rh',
+        'info_dict': {
+            'id': '12N4y1M7rh',
+            'ext': 'mp4',
+            'title': '游戏帧数增加40%？下代联发科天玑芯片或将支持光线追踪！从Immortalis-G715看下代联发科SoC的GPU表现 | Arm: 可以不用咬打火机了！',
+            'tags': list,
+            'description': 'md5:afde2b7ba9025c01d9e3dde10de221e4',
+            'duration': 313.557,
+            'upload_date': '20220709',
+            'uploader': '小夫Tech',
+            'timestamp': 1657347907,
+            'uploader_id': '1326814124',
+            'comment_count': int,
+            'view_count': int,
+            'like_count': int,
+            'thumbnail': r're:^https?://.*\.(jpg|jpeg|png)$',
+        },
+        'params': {
+            'skip_download': True,
+        },
+    }, {
+        # old flv frags format example
+        'url': 'https://www.bilibili.com/video/BV1Xx411P7Ks?p=1',
+        'info_dict': {
+            'id': '1Xx411P7Ks_p01-Frag01',
+            'ext': 'flv',
+            'title': 'infinite stratos 2季 声优见面会影像 p01 昼场-Frag01'
+        },
+    }, {
+        'url': 'https://www.bilibili.com/bangumi/play/ep508406',
+        'only_matching': True,
     }]
 
     def json2srt(self, json_data):
