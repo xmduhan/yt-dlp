@@ -474,7 +474,7 @@ class BilibiliBangumiIE(BilibiliBaseIE):
 
         season_number = season_id and next((
             idx + 1 for idx, e in enumerate(
-            traverse_obj(initial_state, ('mediaInfo', 'seasons')) or [])
+                traverse_obj(initial_state, ('mediaInfo', 'seasons')) or [])
             if e.get('season_id') == season_id
         ), None)
 
