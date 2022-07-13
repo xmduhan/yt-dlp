@@ -287,7 +287,9 @@ class BiliBiliIE(InfoExtractor):
         self._sort_formats(info['formats'])
 
         if not info['formats']:
-            if 'dash' not in play_info:
+            if '成为大会员抢先看' in webpage and 'dash' not in play_info and 'durl' in play_info:
+                raise ExtractorError(f'VIP is required for {url}', expected=True)
+            elif 'dash' not in play_info:
                 # old video
                 info = self.parse_old_flv_formats(video_id, bv_id, video_data.get('cid'),
                                                   play_info['support_formats'] or [], id_str,
