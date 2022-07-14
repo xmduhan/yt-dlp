@@ -19,12 +19,13 @@ from ..utils import (
     mimetype2ext,
     OnDemandPagedList,
     parse_count,
+    parse_qs,
     qualities,
     srt_subtitles_timecode,
     str_or_none,
     traverse_obj,
     urlencode_postdata,
-    url_or_none
+    url_or_none,
 )
 
 
@@ -248,7 +249,7 @@ class BilibiliIE(BilibiliBaseIE):
                         (?:
                             [aA][vV](?P<aid>[^/?#&]+)
                            |[bB][vV](?P<bv_id>[^/?#&]+)
-                        )(?:/?\?p=(?P<page>\d+))?
+                        )
                   '''
 
     _TESTS = [{
@@ -372,11 +373,11 @@ class BilibiliIE(BilibiliBaseIE):
                 note='Extracting videos in anthology'),
             'data', expected_type=list) or []
         has_multi_p = len(page_list_json or []) > 1
-        page_id = int_or_none(mobj.group('page'))
+        part_id = int_or_none(parse_qs(url).get('p', [None])[-1])
 
         title = video_data.get('title')
 
-        if has_multi_p and page_id is None:
+        if has_multi_p and part_id is None:
             # Bilibili anthologies are similar to playlists but all videos share the same video ID as the anthology itself.
             # If the video has no page argument and it's an anthology, download as a playlist
             if not self.get_param('noplaylist'):
@@ -389,10 +390,10 @@ class BilibiliIE(BilibiliBaseIE):
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
 
         # Get part title for anthologies
-        if page_id is not None and has_multi_p:
-            title = f'{title} p{page_id:02d} {traverse_obj(page_list_json, (page_id - 1, "part")) or ""}'
+        if part_id is not None and has_multi_p:
+            title = f'{title} p{part_id:02d} {traverse_obj(page_list_json, (part_id - 1, "part")) or ""}'
 
-        id_str = f'{video_id}{format_field(page_id, template= f"_p%02d", default="")}'
+        id_str = f'{video_id}{format_field(part_id, template= f"_p%02d", default="")}'
 
         play_info = self._search_json(r'window.__playinfo__\s*=\s*', webpage, 'play info', video_id)['data']
         info = self.extract_formats(play_info)
