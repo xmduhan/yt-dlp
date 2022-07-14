@@ -34,43 +34,30 @@ class YhdmpIE(InfoExtractor):
         chrome_wait_timeout = self.get_param('selenium_browner_timeout', 20)
         headless = self.get_param('selenium_browner_headless', True)
 
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.support.ui import WebDriverWait
+        from ..selenium_container import SeleniumContainer
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+        from selenium.webdriver.common.by import By
 
-        chrome_options = Options()
-        chrome_options.add_argument('--log-level=3')
-        chrome_options.add_argument("--disable-blink-features")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        self.to_screen(f'start chrome to query video page...')
+        with SeleniumContainer(
+            headless=headless,
+            close_log_callback=lambda: self.to_screen('Quit chrome and cleanup temp profile...')
+        ) as engine:
+            engine.start()
 
-        if headless:
-            chrome_options.add_argument('--headless')
+            engine.load(url)
 
-        prefs = {"profile.managed_default_content_settings": {'images': 2}}
-        chrome_options.add_experimental_option("prefs", prefs)
-
-        caps = DesiredCapabilities.CHROME
-        caps['goog:loggingPrefs'] = {'performance': 'ALL'}
-
-        self.to_screen(f'start chrome to query video page (timeout {chrome_wait_timeout}s) ...')
-        driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
-        try:
-            driver.get(url)
-
-            iframe_e = WebDriverWait(driver, chrome_wait_timeout).until(
+            iframe_e = engine.wait(chrome_wait_timeout).until(
                 EC.presence_of_element_located((By.ID, 'yh_playfram'))
             )
 
-            title = driver.find_element(By.TAG_NAME, 'title').get_attribute('innerText')
+            title = engine.find_element(By.TAG_NAME, 'title').get_attribute('innerText')
             title_mobj = re.match(r'(?P<t>.*?)\—在线播放\—樱花动漫\(P\)', title)
             if title_mobj.group('t'):
                 title = title_mobj.group('t')
 
-            driver.switch_to.frame(iframe_e)
-            video_e = WebDriverWait(driver, chrome_wait_timeout).until(
+            engine.driver.switch_to.frame(iframe_e)
+            video_e = engine.wait(chrome_wait_timeout).until(
                 EC.presence_of_element_located((By.TAG_NAME, 'video'))
             )
 
@@ -83,15 +70,15 @@ class YhdmpIE(InfoExtractor):
             video_url = video_e.get_attribute('src')
 
             self.to_screen('play video to detect video metadata ...')
-            driver.execute_script("document.getElementsByTagName('video')[0].volume = 0")
-            driver.execute_script("document.getElementsByTagName('video')[0].muted = true")
-            driver.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
-            driver.execute_script("document.getElementsByTagName('video')[0].play()")
+            engine.execute_script("document.getElementsByTagName('video')[0].volume = 0")
+            engine.execute_script("document.getElementsByTagName('video')[0].muted = true")
+            engine.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
+            engine.execute_script("document.getElementsByTagName('video')[0].play()")
 
             videoHeight, videoWidth = None, None
             for _ in range(chrome_wait_timeout):
-                videoHeight = driver.execute_script("return document.getElementsByTagName('video')[0].videoHeight")
-                videoWidth = driver.execute_script("return document.getElementsByTagName('video')[0].videoWidth")
+                videoHeight = engine.execute_script("return document.getElementsByTagName('video')[0].videoHeight")
+                videoWidth = engine.execute_script("return document.getElementsByTagName('video')[0].videoWidth")
 
                 if videoHeight == 0:
                     videoHeight, videoWidth = None, None
@@ -100,12 +87,12 @@ class YhdmpIE(InfoExtractor):
                     break
 
             self.to_screen('Check chrome media-internals info ...')
-            driver.switch_to.new_window()
-            driver.get('chrome://media-internals/')
+            engine.driver.switch_to.new_window()
+            engine.load('chrome://media-internals/')
             time.sleep(1)
-            driver.execute_script("document.getElementsByClassName('player-name')[0].click()")
-            video_info_e = driver.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kVideoTracks"]/following-sibling::td')
-            audio_info_e = driver.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kAudioTracks"]/following-sibling::td')
+            engine.execute_script("document.getElementsByClassName('player-name')[0].click()")
+            video_info_e = engine.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kVideoTracks"]/following-sibling::td')
+            audio_info_e = engine.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kAudioTracks"]/following-sibling::td')
 
             video_info_dict = json.loads(video_info_e.get_attribute('innerText'))[0]
             audio_info_dict = json.loads(audio_info_e.get_attribute('innerText'))[0]
@@ -141,8 +128,5 @@ class YhdmpIE(InfoExtractor):
                                  'protocol': 'yhdmp_obfuscate_m3u8',
                                  'ext': 'mp4', **fmt_info}],
                 }
-        finally:
-            self.to_screen('Quit chrome and cleanup temp profile...')
-            driver.quit()
 
         raise ExtractorError(f'unknown format {url}')

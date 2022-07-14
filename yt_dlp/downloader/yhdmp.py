@@ -1,18 +1,15 @@
-import collections
 import datetime
-import json
 import os.path
 import time
 from pathlib import Path
-import base64
 
-from ..utils import traverse_obj, PostProcessingError
+from ..utils import PostProcessingError
 from .fragment import FragmentFD
 from ..postprocessor import FFmpegConcatPP, FFmpegPostProcessor
 
 
 class YhdmpObfuscateM3U8FD(FragmentFD):
-    FD_NAME = 'yhdmp'
+    FD_NAME = 'yhdmp_obfuscate_m3u8'
 
     def __init__(self, ydl, params):
         FragmentFD.__init__(self, ydl, params)
@@ -21,176 +18,142 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
         self.chrome_wait_timeout = params.get('selenium_browner_timeout', 20)
         self.headless = params.get('selenium_browner_headless', True)
 
+    @staticmethod
+    def try_call(*funcs, expected_type=None, args=[], kwargs={}):
+        for f in funcs:
+            try:
+                val = f(*args, **kwargs)
+            except Exception:
+                pass
+            else:
+                if expected_type is None or isinstance(val, expected_type):
+                    return val
+
     def type1_download_frags(self, url, temp_output_fn_prefix):
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.support.ui import WebDriverWait
+
+        from ..selenium_container import SeleniumContainer
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+        from selenium.webdriver.common.by import By
 
-        chrome_options = Options()
-        chrome_options.add_argument('--log-level=3')
-        chrome_options.add_argument("--disable-blink-features")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        self.to_screen(f'start chrome to query video page...')
+        with SeleniumContainer(
+            headless=self.headless,
+            close_log_callback=lambda: self.to_screen('Quit chrome and cleanup temp profile...')
+        ) as engine:
+            engine.start()
 
-        if self.headless:
-            chrome_options.add_argument('--headless')
+            engine.load(url)
 
-        prefs = {"profile.managed_default_content_settings": {'images': 2}}
-        chrome_options.add_experimental_option("prefs", prefs)
-
-        caps = DesiredCapabilities.CHROME
-        caps['goog:loggingPrefs'] = {'performance': 'ALL'}
-
-        self.to_screen(f'[yhdmp] start chrome to query video page (timeout {self.chrome_wait_timeout}s) ...')
-        driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
-
-        try:
-            driver.execute_cdp_cmd('Network.enable', {
-                'maxResourceBufferSize': 1024 * 1024 * 1024,
-                'maxTotalBufferSize': 1024 * 1024 * 1024,
-            })
-
-            driver.get(url)
-
-            iframe_e = WebDriverWait(driver, self.chrome_wait_timeout).until(
+            iframe_e = engine.wait(self.chrome_wait_timeout).until(
                 EC.presence_of_element_located((By.ID, 'yh_playfram'))
             )
 
-            driver.switch_to.frame(iframe_e)
+            engine.driver.switch_to.frame(iframe_e)
 
-            WebDriverWait(driver, self.chrome_wait_timeout).until(
+            engine.wait(self.chrome_wait_timeout).until(
                 EC.presence_of_element_located((By.TAG_NAME, 'video'))
             )
 
             self.to_screen('[yhdmp] start play video at x16 speed ...')
-            driver.execute_script("document.getElementsByTagName('video')[0].volume = 0")
-            driver.execute_script("document.getElementsByTagName('video')[0].muted = true")
-            driver.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
-            driver.execute_script("document.getElementsByTagName('video')[0].play()")
+            engine.execute_script("document.getElementsByTagName('video')[0].volume = 0")
+            engine.execute_script("document.getElementsByTagName('video')[0].muted = true")
+            engine.execute_script("document.getElementsByTagName('video')[0].playbackRate=16")
+            engine.execute_script("document.getElementsByTagName('video')[0].play()")
 
             self.add_progress_hook(self.report_progress)
 
-            response_dict = dict()
             m3u8_text = None
             m3u8_frag_urls = None
-            m3u8_frag_file_list = []
+            frag_file_dict = {}
 
             progress_bytes_counter = 0
             progress_start_dt = datetime.datetime.now()
+            progress_last_dt = datetime.datetime.now()
             last_tick_bytes_counter = 0
             progress_report_finished = False
             while True:
-                stopped = driver.execute_script("return document.getElementsByTagName('video')[0].ended")
+                stopped = engine.execute_script("return document.getElementsByTagName('video')[0].ended")
 
-                browser_log = driver.get_log('performance')
+                try:
+                    engine.extract_network()
 
-                request_id_data = collections.defaultdict(list)
+                    for request_url in engine.response_updated_key_list:
+                        resp_map = engine.response_dict[request_url]
+                        resp = engine.get_response_frag_data(resp_map)
 
-                events = [json.loads(entry['message'])['message'] for entry in browser_log]
-                events = [e for e in events
-                          if e['method'].startswith('Network.requestWillBeSent')
-                          or e['method'].startswith('Network.responseReceived')
-                          ]
-
-                for e in events:
-                    request_url = traverse_obj(e, ('params', 'request', 'url'))
-                    if request_url is not None:
-                        e['request_url'] = request_url
-                    request_id_data[e['params']['requestId']].append(e)
-
-                for requestId, request_list in request_id_data.items():
-                    request_list.sort(key=lambda d: d['method'])
-                    request_url = traverse_obj(request_list, (0, 'request_url'))
-                    if request_url is None:
-                        request_url = f"requestId:{requestId}"
-                    if request_url.startswith('chrome'):
-                        continue
-
-                    try:
-                        resp = driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': requestId})
-
-                        if resp['base64Encoded']:
-                            resp_body = base64.b64decode(resp['body'])
-                            try:
-                                resp_body = resp_body.decode('utf8')
-                                resp_body_text = True
-                            except Exception:
-                                resp_body_text = False
-                        else:
-                            resp_body = resp['body']
-                            resp_body_text = True
-
-                        if request_url not in response_dict:
-                            response_dict[request_url] = resp_body
-
-                            if not m3u8_text and resp_body_text and resp_body.startswith('#EXTM3U'):
-                                m3u8_text = resp_body
-                                if self.verbose:
-                                    self.to_screen('[yhdmp] load m3u8')
-
-                                m3u8_frag_urls = [l for l in m3u8_text.split('\n') if l.startswith('http')]
-
-                            if m3u8_frag_urls:
-                                try:
-                                    frag_idx = m3u8_frag_urls.index(request_url)
-                                    # skip fake png header
-                                    resp_body = resp_body[126:]
-                                except ValueError:
-                                    frag_idx = -1
-                                if frag_idx != -1:
-                                    fn = f'{temp_output_fn_prefix}.Frag{frag_idx:04d}.ts'
-                                    m3u8_frag_file_list.append(fn)
-                                    with open(fn, 'wb') as f:
-                                        f.write(resp_body)
-
-                                    progress_bytes_counter += len(resp_body)
-                    except Exception as e:
-                        if 'No data found for resource with given identifier' in str(e):
-                            if '.m3u8' not in request_url:
-                                # m3u8 is always failed
-                                if self.verbose:
-                                    print(f'[yhdmp] {request_url}, No data found for resource with given identifier')
-                        elif 'No resource with given identifier found' in str(e):
+                        if not m3u8_text and resp['body_text'] and resp['body'].startswith('#EXTM3U'):
+                            m3u8_text = resp['body']
                             if self.verbose:
-                                print(f'[yhdmp] {request_url}, No resource with given identifier found')
-                        else:
-                            self.report_progress({
-                                        'info_dict': {},
-                                        'status': 'error',
-                                        'filename': temp_output_fn_prefix,
-                                        'downloaded_bytes': progress_bytes_counter,
-                                        'elapsed': (datetime.datetime.now() - progress_start_dt).seconds,
-                                        'fragment_count': len(m3u8_frag_urls)
-                                    })
-                            raise
+                                self.to_screen('[yhdmp] load m3u8')
+
+                            m3u8_frag_urls = [l for l in m3u8_text.split('\n') if l.startswith('http')]
+
+                        if not m3u8_frag_urls:
+                            continue
+
+                        frag_idx = YhdmpObfuscateM3U8FD.try_call(lambda: m3u8_frag_urls.index(request_url))
+
+                        if frag_idx is None:
+                            continue
+
+                        fn = f'{temp_output_fn_prefix}.Frag{frag_idx:04d}.ts'
+                        if not resp['end']:
+                            print(f'{fn} is not finished, skip')
+                            continue
+
+                        resp_body = resp['body']
+                        # skip fake png header
+                        resp_body = resp_body[126:]
+
+                        if fn in frag_file_dict and frag_file_dict[fn] != len(resp_body):
+                            print(f'Found {fn} twice, size {frag_file_dict[fn]} != {len(resp_body)}')
+
+                        frag_file_dict[fn] = len(resp_body)
+
+                        with open(fn, 'wb') as f:
+                            f.write(resp_body)
+                        progress_bytes_counter += len(resp_body)
+
+                    if m3u8_frag_urls:
+                        engine.response_updated_key_list.clear()
+                except Exception:
+                    if m3u8_frag_urls is not None:
+                        self.report_progress({
+                            'info_dict': {},
+                            'status': 'error',
+                            'filename': temp_output_fn_prefix,
+                            'downloaded_bytes': progress_bytes_counter,
+                            'elapsed': (datetime.datetime.now() - progress_start_dt).seconds,
+                            'fragment_count': len(m3u8_frag_urls)
+                        })
+                    raise
 
                 if not progress_report_finished and m3u8_frag_urls is not None:
                     elapsed = (datetime.datetime.now() - progress_start_dt).seconds
                     progress_info = {
                         'status': 'downloading',
                         'filename': temp_output_fn_prefix,
-                        'fragment_index': len(m3u8_frag_file_list),
+                        'fragment_index': len(frag_file_dict),
                         'fragment_count': len(m3u8_frag_urls),
                         'elapsed': elapsed,
                         'downloaded_bytes': progress_bytes_counter,
-                        'speed': (progress_bytes_counter - last_tick_bytes_counter) / 1.0,
+                        'speed': (progress_bytes_counter - last_tick_bytes_counter) / (datetime.datetime.now() - progress_last_dt).total_seconds(),
                     }
-                    if self.params.get('test', False) and len(m3u8_frag_file_list) >= 2:
+                    if self.params.get('test', False) and len(frag_file_dict) >= 2:
                         progress_info['status'] = 'finished'
                         break
-                    elif len(m3u8_frag_file_list) == len(m3u8_frag_urls):
+                    elif len(frag_file_dict) == len(m3u8_frag_urls):
                         progress_info['status'] = 'finished'
                         progress_report_finished = True
-                    elif len(m3u8_frag_file_list) >= 10:
-                        total_bytes_estimate = progress_bytes_counter * 1.0 / len(m3u8_frag_file_list) * len(m3u8_frag_urls)
+                    elif len(frag_file_dict) >= 10:
+                        total_bytes_estimate = progress_bytes_counter * 1.0 / len(frag_file_dict) * len(m3u8_frag_urls)
                         progress_info.update({
                             'total_bytes_estimate': total_bytes_estimate,
                             'eta': elapsed * (1.0 / progress_bytes_counter * total_bytes_estimate - 1.0)
                         })
                     self._hook_progress(progress_info, {})
                 last_tick_bytes_counter = progress_bytes_counter
+                progress_last_dt = datetime.datetime.now()
 
                 if stopped:
                     break
@@ -200,11 +163,10 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
             # end line for progress
             print()
 
-            m3u8_frag_file_list.sort(key=lambda s: s)
-            return m3u8_frag_file_list
-        finally:
-            self.to_screen('[yhdmp] Quit chrome and cleanup temp profile...')
-            driver.quit()
+            result_list = list(frag_file_dict.keys())
+            result_list.sort(key=lambda s: s)
+
+            return result_list
 
     def real_download(self, filename, info_dict):
         requested_formats = [{**info_dict, **fmt} for fmt in info_dict.get('requested_formats', [])]
@@ -214,9 +176,6 @@ class YhdmpObfuscateM3U8FD(FragmentFD):
 
         for fmt in target_formats:
             url = fmt['url']
-
-            if self.verbose:
-                self.to_screen('[yhdmp] format: yhdmp_obfuscate_m3u8')
 
             fmt_output_filename = filename
             temp_output_fn = fmt_output_filename[:-len(Path(fmt_output_filename).suffix)]
