@@ -34,6 +34,7 @@ from .niconico import NiconicoDmcFD
 from .rtmp import RtmpFD
 from .rtsp import RtspFD
 from .websocket import WebSocketFragmentFD
+from .yhdmp import YhdmpObfuscateM3U8FD
 from .youtube_live_chat import YoutubeLiveChatFD
 
 PROTOCOL_MAP = {
@@ -52,6 +53,7 @@ PROTOCOL_MAP = {
     'niconico_dmc': NiconicoDmcFD,
     'fc2_live': FC2LiveFD,
     'websocket_frag': WebSocketFragmentFD,
+    'yhdmp_obfuscate_m3u8': YhdmpObfuscateM3U8FD,
     'youtube_live_chat': YoutubeLiveChatFD,
     'youtube_live_chat_replay': YoutubeLiveChatFD,
 }
