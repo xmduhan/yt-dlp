@@ -2,6 +2,7 @@ import base64
 import collections
 import itertools
 import functools
+import json
 import math
 
 from .common import InfoExtractor, SearchInfoExtractor
@@ -527,6 +528,156 @@ class BilibiliBangumiMediaIE(InfoExtractor):
         return self.playlist_result([self.url_result(entry['share_url'], BilibiliIE.ie_key(), entry['aid'])
                                      for entry in episode_list],
                                     media_id)
+
+
+class BilibiliCheeseIE(BilibiliBaseIE):
+    _VALID_URL = r'(?x)https?://www\.bilibili\.com/cheese/play/(?P<id>(?:ss|ep)\d+)'
+
+    _TESTS = [{
+        'url': 'https://www.bilibili.com/cheese/play/ep6902',
+        'info_dict': {
+            'id': 'ep6902',
+            'ext': 'mp4',
+        },
+    }]
+
+    def _real_extract(self, url):
+        video_id = self._match_id(url)
+
+        self.verbose = True
+
+        chrome_wait_timeout = self.get_param('selenium_browner_timeout', 20)
+        headless = self.get_param('selenium_browner_headless', True)
+
+        from ..selenium_container import SeleniumContainer
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.by import By
+
+        self.to_screen(f'start chrome to query video page...')
+        with SeleniumContainer(
+            headless=headless,
+            close_log_callback=lambda: self.to_screen('Quit chrome and cleanup temp profile...')
+        ) as engine:
+            engine.start()
+
+            if self.get_param('cookiesfrombrowser'):
+                engine.load('https://www.bilibili.com')
+                engine.load_cookies(self._downloader.cookiejar, ['.bilibili.com'])
+
+            engine.load(url)
+
+            engine.extract_network()
+
+            season_info = None
+            for request_url in engine.response_dict:
+                if request_url.startswith('https://api.bilibili.com/pugv/view/web/season'):
+                    season_info = engine.response_dict[request_url].popitem()[1]['body']
+                    season_info = json.loads(season_info)['data']
+                    self.to_screen(f'loaded season info {request_url}')
+
+            playurl = None
+            for request_url in engine.response_dict:
+                if request_url.startswith('https://api.bilibili.com/pugv/player/web/playurl'):
+                    playurl = engine.response_dict[request_url].popitem()[1]['body']
+                    playurl = json.loads(playurl)['data']
+                    self.to_screen(f'loaded playurl {request_url}')
+
+            title = traverse_obj(season_info, 'title')
+            uploader = traverse_obj(season_info, ('up_info', 'uname'))
+            uploader_id = traverse_obj(season_info, ('up_info', 'mid'))
+
+            episodes = [{
+                'id': f'ep{e["id"]}',
+                'url': f'https://www.bilibili.com/cheese/play/ep{e["id"]}',
+                'title': e['title'],
+                'label': e.get('label'),
+                'playable': e['playable'],
+                'index': e['index'],
+                'play_whole': e['playable'] and e.get('label') in [None, '全集试看']
+            } for e in traverse_obj(season_info, 'episodes') or [] ]
+
+            ep_info = [e for e in episodes if e['id'] == video_id][0]
+            if ep_info['index'] == 1:
+                if not self.get_param('noplaylist'):
+                    self.to_screen('Downloading playlist %s - add --no-playlist to just download video' % video_id)
+                    return self.playlist_result(
+                        [self.url_result(entry['url'], BilibiliCheeseIE.ie_key(), entry['id'])
+                         for entry in episodes if entry['play_whole']], season_info['season_id'])
+                else:
+                    self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
+
+            engine.wait(chrome_wait_timeout).until(
+                EC.presence_of_element_located((By.TAG_NAME, 'video'))
+            )
+
+            support_formats = traverse_obj(playurl, 'support_formats', expected_type=list) or []
+            format_desc_index = {f['new_description']: f for f in support_formats}
+            format_qn_index = {f['quality']: f['new_description'] for f in support_formats}
+
+            engine.execute_script('document.fmt_root = document.getElementsByClassName("edu-player-quality-list edu-player-hover-dialog")[0]')
+            fmt_len = engine.execute_script('return document.fmt_root.childNodes.length')
+            available_fmt_button_list = {}
+            for i in range(fmt_len):
+                text = engine.execute_script(f'return document.fmt_root.childNodes[{i}].getElementsByTagName("span")[0].innerText')
+                text2 = engine.execute_script(f'return document.fmt_root.childNodes[{i}].getElementsByTagName("span")[1]?.innerText')
+                if text == '自动':
+                    continue
+                if text2 in ['登录即享']:
+                    continue
+                fmt = format_desc_index[text]
+                qn = fmt['quality']
+                available_fmt_button_list[qn] = (i, fmt)
+
+            audio_formats = []
+            audios = traverse_obj(playurl, ('dash', 'audio')) or []
+            for audio in audios:
+                audio_formats.append({
+                    'url': audio.get('base_url'),
+                    'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
+                    'acodec': audio.get('codecs'),
+                    'vcodec': 'none',
+                    'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
+                    'filesize': int_or_none(audio.get('size'))
+                })
+
+            formats = {}
+            for video in traverse_obj(playurl, ('dash', 'video')) or []:
+                qn = video['id']
+                if qn not in available_fmt_button_list:
+                    continue
+                formats[qn] = {
+                    'url': video.get('base_url'),
+                    'ext': mimetype2ext(video.get('mime_type')),
+                    'fps': self.fix_fps(video.get('frame_rate')),
+                    'width': int_or_none(video.get('width')),
+                    'height': int_or_none(video.get('height')),
+                    'vcodec': video.get('codecs'),
+                    'acodec': 'none' if audios else None,
+                    'quality': qn,
+                    'format_note': format_qn_index.get(qn),
+                }
+
+        missing_format = {desc: f for desc, f in format_desc_index.items() if f['quality'] not in formats}
+        if len(missing_format) > 0:
+            self.to_screen(f'Format [{", ".join(missing_format.keys())}] is missing, you have to login or become premium member to download.')
+
+        if not ep_info['play_whole']:
+            return
+
+        formats = list(formats.values()) + audio_formats
+        self._sort_formats(formats)
+        return {
+            'id': video_id,
+            'title': title,
+            'formats': formats,
+            'uploader': uploader,
+            'uploader_id': uploader_id,
+            'duration': float_or_none(playurl.get('timelength'), scale=1000),
+            'Referer': 'https://www.bilibili.com/',
+            'http_headers': {
+                'Referer': 'https://www.bilibili.com/',
+            }
+        }
 
 
 class BilibiliSpaceBaseIE(InfoExtractor):
