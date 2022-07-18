@@ -582,17 +582,14 @@ class BilibiliCheeseIE(BilibiliBaseIE):
                     playurl = json.loads(playurl)['data']
                     self.to_screen(f'loaded playurl {request_url}')
 
-            title = traverse_obj(season_info, 'title')
+            season_title = traverse_obj(season_info, 'title')
             uploader = traverse_obj(season_info, ('up_info', 'uname'))
             uploader_id = traverse_obj(season_info, ('up_info', 'mid'))
 
             episodes = [{
+                **e,
                 'id': f'ep{e["id"]}',
                 'url': f'https://www.bilibili.com/cheese/play/ep{e["id"]}',
-                'title': e['title'],
-                'label': e.get('label'),
-                'playable': e['playable'],
-                'index': e['index'],
                 'play_whole': e['playable'] and e.get('label') in [None, '全集试看']
             } for e in traverse_obj(season_info, 'episodes') or [] ]
 
@@ -606,72 +603,28 @@ class BilibiliCheeseIE(BilibiliBaseIE):
                 else:
                     self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
 
+            episode_title = ep_info['title']
+
             engine.wait(chrome_wait_timeout).until(
                 EC.presence_of_element_located((By.TAG_NAME, 'video'))
             )
 
-            support_formats = traverse_obj(playurl, 'support_formats', expected_type=list) or []
-            format_desc_index = {f['new_description']: f for f in support_formats}
-            format_qn_index = {f['quality']: f['new_description'] for f in support_formats}
-
-            engine.execute_script('document.fmt_root = document.getElementsByClassName("edu-player-quality-list edu-player-hover-dialog")[0]')
-            fmt_len = engine.execute_script('return document.fmt_root.childNodes.length')
-            available_fmt_button_list = {}
-            for i in range(fmt_len):
-                text = engine.execute_script(f'return document.fmt_root.childNodes[{i}].getElementsByTagName("span")[0].innerText')
-                text2 = engine.execute_script(f'return document.fmt_root.childNodes[{i}].getElementsByTagName("span")[1]?.innerText')
-                if text == '自动':
-                    continue
-                if text2 in ['登录即享']:
-                    continue
-                fmt = format_desc_index[text]
-                qn = fmt['quality']
-                available_fmt_button_list[qn] = (i, fmt)
-
-            audio_formats = []
-            audios = traverse_obj(playurl, ('dash', 'audio')) or []
-            for audio in audios:
-                audio_formats.append({
-                    'url': audio.get('base_url'),
-                    'ext': mimetype2ext(audio.get('mimeType') or audio.get('mime_type')),
-                    'acodec': audio.get('codecs'),
-                    'vcodec': 'none',
-                    'tbr': float_or_none(audio.get('bandwidth'), scale=1000),
-                    'filesize': int_or_none(audio.get('size'))
-                })
-
-            formats = {}
-            for video in traverse_obj(playurl, ('dash', 'video')) or []:
-                qn = video['id']
-                if qn not in available_fmt_button_list:
-                    continue
-                formats[qn] = {
-                    'url': video.get('base_url'),
-                    'ext': mimetype2ext(video.get('mime_type')),
-                    'fps': self.fix_fps(video.get('frame_rate')),
-                    'width': int_or_none(video.get('width')),
-                    'height': int_or_none(video.get('height')),
-                    'vcodec': video.get('codecs'),
-                    'acodec': 'none' if audios else None,
-                    'quality': qn,
-                    'format_note': format_qn_index.get(qn),
-                }
-
-        missing_format = {desc: f for desc, f in format_desc_index.items() if f['quality'] not in formats}
-        if len(missing_format) > 0:
-            self.to_screen(f'Format [{", ".join(missing_format.keys())}] is missing, you have to login or become premium member to download.')
+            info = self.extract_formats(playurl)
 
         if not ep_info['play_whole']:
             return
 
-        formats = list(formats.values()) + audio_formats
-        self._sort_formats(formats)
         return {
+            **info,
             'id': video_id,
-            'title': title,
-            'formats': formats,
+            'title': f'{season_title} {episode_title}',
+            'season': season_title,
+            'episode': episode_title,
+            'episode_number': ep_info['index'],
             'uploader': uploader,
             'uploader_id': uploader_id,
+            'timestamp': ep_info.get('release_date'),
+            'thumbnail': ep_info.get('cover'),
             'duration': float_or_none(playurl.get('timelength'), scale=1000),
             'Referer': 'https://www.bilibili.com/',
             'http_headers': {
