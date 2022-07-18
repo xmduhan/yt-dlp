@@ -93,7 +93,9 @@ class XiaoeknownIE(InfoExtractor):
             video_fmt = engine.parse_video_info()
 
             fmt_info = {
-                **fmt, **video_fmt
+                **fmt,
+                **video_fmt,
+                'ext': 'mp4'
             }
 
         return {
