@@ -86,6 +86,12 @@ class YhdmpIE(InfoExtractor):
                 else:
                     break
 
+            engine.extract_network()
+            for url in engine.response_updated_key_list:
+                if '.m3u8' in url:
+                    video_url = url
+                    self._downloader.params["hls_prefer_native"] = True
+
             self.to_screen('Check chrome media-internals info ...')
             fmt_info = engine.parse_video_info()
 
@@ -94,17 +100,21 @@ class YhdmpIE(InfoExtractor):
                     **info_dict,
                     'formats': [{'url': video_url, **fmt_info}],
                 }
+            if '.m3u8' in video_url:
+                return {
+                    **info_dict,
+                    'formats': [{
+                        'url': video_url,
+                        'protocol': 'm3u8_native',
+                        'ext': 'mp4',
+                        'm3u8_frag_fake_image_header': True,
+                        **fmt_info
+                        }]
+                }
             if '?dpvt=' in video_url:
                 return {
                     **info_dict,
                     'formats': [{'url': video_url, 'ext': 'mp4', **fmt_info}],
-                }
-            if video_url.startswith('blob:https://www.yhdmp.cc/'):
-                return {
-                    **info_dict,
-                    'formats': [{'url': url,
-                                 'protocol': 'yhdmp_obfuscate_m3u8',
-                                 'ext': 'mp4', **fmt_info}],
                 }
 
         raise ExtractorError(f'unknown format {url}')
