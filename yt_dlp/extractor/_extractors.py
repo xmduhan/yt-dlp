@@ -2125,6 +2125,7 @@ from .xiami import (
     XiamiArtistIE,
     XiamiCollectionIE
 )
+from .xiaoeknow import XiaoeknownIE
 from .ximalaya import (
     XimalayaIE,
     XimalayaAlbumIE

@@ -32,6 +32,7 @@ class SeleniumContainer:
         chrome_options.add_argument('--log-level=3')
         chrome_options.add_argument("--disable-blink-features")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.binary_location = r"C:\Program Files\Google\Chrome Beta\Application\chrome.exe"
 
         if self.headless:
             chrome_options.add_argument('--headless')
