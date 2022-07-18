@@ -135,10 +135,15 @@ class SeleniumContainer:
                     if self.response_dict[request_url][requestId] == data:
                         # print(f'Found same rewrite, {request_url}')
                         updated = False
+                    else:
+                        # print(f'Found same updated, {request_url}')
+                        pass
+
                 if updated and request_url not in self.response_updated_key_list:
                     self.response_updated_key_list.append(request_url)
 
                 self.response_dict[request_url][requestId] = data
+                # print(f'Get new resp:{len(self.response_dict[request_url])} start:{range_start} len:{len(resp_body)} {request_url}')
 
             except Exception as e:
                 if 'No data found for resource with given identifier' in str(e):
@@ -148,24 +153,26 @@ class SeleniumContainer:
                 else:
                     raise
 
-    def get_response_frag_data(self, resp_map):
+    def get_response_frag_data(self, resp_map, check_complete=True):
         if len(resp_map) == 1:
             return list(resp_map.values())[0]
 
         frags = [f for f in resp_map.values() if f['range_start'] is not None]
         frags.sort(key=lambda f: f['range_start'])
-        frag_offset = -1
-        for f in frags:
-            if f['range_start'] != frag_offset + 1:
-                print(f'broken {f["range_start"]}')
-            frag_offset = f['range_end']
-        if not frags[-1]['end']:
-            print('missing tail')
+        if check_complete:
+            frag_offset = -1
+            for f in frags:
+                if f['range_start'] != frag_offset + 1:
+                    print(f'broken {f["range_start"]}')
+                frag_offset = f['range_end']
+            if not frags[-1]['end']:
+                print('missing tail')
 
-        data = b''.join(f['data'] for f in frags)
+        data = b''.join(f['body'] for f in frags)
         return {
             'body': data,
             'body_text': False,
+            'range_len': frags[-1]['range_len'],
             'end': frags[-1]['end']
         }
 
