@@ -2,8 +2,10 @@ import base64
 import collections
 import json
 import re
+import time
 
 from .utils import (
+    int_or_none,
     traverse_obj,
     try_call,
 )
@@ -12,7 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-
+from selenium.webdriver.common.by import By
 
 class SeleniumContainer:
     def __init__(self, headless, close_log_callback=None):
@@ -50,18 +52,23 @@ class SeleniumContainer:
     def load(self, url):
         self.driver.get(url)
 
-    def load_cookies(self, cookiejar, domain_list):
-        if cookiejar:
-            for domain in domain_list:
-                cookies_loaded = [{
-                    'name': c.name,
-                    'value': c.value,
-                    'path': c.path,
-                    'domain': c.domain
-                } for _, c in cookiejar._cookies[domain]['/'].items()]
+    def load_cookies(self, cookiejar, base_domain):
+        if not cookiejar:
+            return
 
-                for c in cookies_loaded:
-                    self.driver.add_cookie(c)
+        domain_list = [k for k in cookiejar._cookies if k.endswith(base_domain)]
+
+        for domain in domain_list:
+            cookies_loaded = [{
+                'name': c.name,
+                'value': c.value,
+                'path': c.path,
+                'domain': c.domain
+            } for _, c in cookiejar._cookies[domain]['/'].items()]
+
+            for c in cookies_loaded:
+                self.driver.add_cookie(c)
+            print(f'loaded {len(cookies_loaded)} cookies for {domain}')
 
     def extract_network(self):
         browser_log = self.driver.get_log('performance')
@@ -161,6 +168,32 @@ class SeleniumContainer:
             'body_text': False,
             'end': frags[-1]['end']
         }
+
+    def parse_video_info(self):
+        self.driver.switch_to.new_window()
+        self.load('chrome://media-internals/')
+        time.sleep(1)
+        self.execute_script("document.getElementsByClassName('player-name')[0].click()")
+        video_info_e = self.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kVideoTracks"]/following-sibling::td')
+        audio_info_e = self.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kAudioTracks"]/following-sibling::td')
+
+        video_info_dict = json.loads(video_info_e.get_attribute('innerText'))[0]
+        audio_info_dict = json.loads(audio_info_e.get_attribute('innerText'))[0]
+
+        vcodec = video_info_dict['codec']
+        acodec = audio_info_dict['codec']
+        video_size = video_info_dict['coded size']
+        videoWidth, videoHeight = video_size.split('x')
+        asr = audio_info_dict['samples per second']
+
+        return {
+                'width': int_or_none(videoWidth),
+                'height': int_or_none(videoHeight),
+                'vcodec': vcodec,
+                'acodec': acodec,
+                'asr': asr,
+            }
+
 
     def find_element(self, *args, **kvargs):
         return self.driver.find_element(*args, **kvargs)

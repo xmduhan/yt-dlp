@@ -87,29 +87,7 @@ class YhdmpIE(InfoExtractor):
                     break
 
             self.to_screen('Check chrome media-internals info ...')
-            engine.driver.switch_to.new_window()
-            engine.load('chrome://media-internals/')
-            time.sleep(1)
-            engine.execute_script("document.getElementsByClassName('player-name')[0].click()")
-            video_info_e = engine.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kVideoTracks"]/following-sibling::td')
-            audio_info_e = engine.find_element(By.XPATH, '//table[@id="player-property-table"]//td[text()="kAudioTracks"]/following-sibling::td')
-
-            video_info_dict = json.loads(video_info_e.get_attribute('innerText'))[0]
-            audio_info_dict = json.loads(audio_info_e.get_attribute('innerText'))[0]
-
-            vcodec = video_info_dict['codec']
-            acodec = audio_info_dict['codec']
-            video_size = video_info_dict['coded size']
-            videoWidth, videoHeight = video_size.split('x')
-            asr = audio_info_dict['samples per second']
-
-            fmt_info = {
-                'width': int_or_none(videoWidth),
-                'height': int_or_none(videoHeight),
-                'vcodec': vcodec,
-                'acodec': acodec,
-                'asr': asr
-            }
+            fmt_info = engine.parse_video_info()
 
             if '.mp4?' in video_url:
                 return {
