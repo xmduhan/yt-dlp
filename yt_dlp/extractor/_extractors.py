@@ -174,6 +174,7 @@ from .bilibili import (
     BiliIntlIE,
     BiliIntlSeriesIE,
     BiliLiveIE,
+    BilibiliCheeseIE,
 )
 from .biobiochiletv import BioBioChileTVIE
 from .bitchute import (
