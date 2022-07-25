@@ -524,7 +524,7 @@ class BilibiliBangumiMediaIE(InfoExtractor):
                                 ).get('result', {}),
             ('main_section', 'episodes')) or []
 
-        return self.playlist_result([self.url_result(entry['share_url'], BilibiliIE.ie_key(), entry['aid'])
+        return self.playlist_result([self.url_result(entry['share_url'], BilibiliBangumiIE.ie_key(), entry['aid'])
                                      for entry in episode_list],
                                     media_id)
 
