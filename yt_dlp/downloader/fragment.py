@@ -603,8 +603,12 @@ class FragmentFD(FileDownloader):
                     break
                 try:
                     download_fragment(fragment, ctx)
+                    frag_bytes = self._read_fragment(ctx)
+                    if info_dict.get('m3u8_frag_fake_image_header'):
+                        ts_start_pos = frag_bytes.find(b'\x47\x40')
+                        frag_bytes = frag_bytes[ts_start_pos:]
                     result = append_fragment(
-                        decrypt_fragment(fragment, self._read_fragment(ctx)), fragment['frag_index'], ctx)
+                        decrypt_fragment(fragment, frag_bytes), fragment['frag_index'], ctx)
                 except KeyboardInterrupt:
                     if info_dict.get('is_live'):
                         break
